@@ -65,7 +65,9 @@ export class SkullScene {
     for (const o of this.eyes) o.scale.setScalar(0.8 + e * 0.5);
     this.camera.aspect = asp;
     this.camera.updateProjectionMatrix();
-    this.camera.position.set(0, 0, asp < 1 ? 9 : 7);
-    this.camera.lookAt(0, asp < 1 ? -1.5 : -0.9, 0);
+    // Leave room below for the end-screen sheet; narrower views need more distance.
+    const d = asp < 0.75 ? 11 : asp < 1.2 ? 10 : 7;
+    this.camera.position.set(0, 0, d);
+    this.camera.lookAt(0, asp < 1.2 ? -1.3 : -0.9, 0);
   }
 }

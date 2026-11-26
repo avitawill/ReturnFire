@@ -184,6 +184,13 @@ export class WorldView {
       }
       list.forEach((st, index) => {
         base.setColorAt(index, _c.set(kind === 'wall' ? (index % 2 ? '#e6e6e6' : '#ffffff') : '#ffffff'));
+        if (!st.alive) {
+          // Rebuilt mid-match (e.g. after a quality change): already destroyed.
+          base.setMatrixAt(index, ZERO);
+          head?.setMatrixAt(index, ZERO);
+          this.addRubble(st);
+          return;
+        }
         this.slots.set(st.id, { base, head, index, headY: geo.headY ?? 10 });
       });
       if (base.instanceColor) base.instanceColor.needsUpdate = true;

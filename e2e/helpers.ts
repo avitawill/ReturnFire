@@ -10,8 +10,10 @@ export interface VehicleInfo {
 }
 
 /** Waits until the game has booted and rendered a few frames. */
+/** Boots straight into a single-player match unless the query says otherwise. */
 export async function boot(page: Page, query = '') {
-  await page.goto(`./${query}`);
+  const q = query.includes('play=') || query.includes('menu') ? query : `${query}${query ? '&' : '?'}play=1`;
+  await page.goto(`./${q}`);
   await page.waitForFunction(() => {
     const g = (window as any).__mivtza;
     return g && g.stats.frames > 3;

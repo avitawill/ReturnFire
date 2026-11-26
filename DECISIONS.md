@@ -182,3 +182,45 @@ Hard AI vs do-nothing: 10/10 (3–7 minutes). No AI ground vehicle was stuck for
 
 **Single player** fights the AI as the east side; difficulty is `?difficulty=easy|medium|hard` until
 the settings menu exists (milestone 5).
+
+## Milestone 5: two players and polish
+
+**Flow.** The game opens on a main menu over a slowly orbiting view of the chosen map. Choices: one or
+two players, map (three hand-made maps or a random one with a visible, re-rollable number), AI
+difficulty, settings. Settings hold graphics quality and three volume sliders plus mute; they are
+remembered in `localStorage`. Esc/P/Start pauses; the pause screen offers resume, settings and quit.
+End screens offer a rematch or the menu. Quality changes rebuild the renderer immediately, mid-match too.
+
+**Split screen.** Side by side on wide screens, stacked on tall ones. Each half has its own camera, HUD,
+minimap, messages, vehicle bay, skull and music; music channels are panned left/right so both themes
+can be told apart on one speaker. Devices: keyboard + gamepad, two gamepads (keyboard joins player 1),
+or, with no gamepads, a shared keyboard (WASD/F and arrows/Enter) so it can be tried on a laptop.
+Unlike single player, the match does not pause while one player is in the bay. Slow motion on tower
+collapse is single-player only.
+
+**Maps.** *Two Shores* (the prototype's archipelago, now symmetric), *The Strait* (one causeway through
+three islets, everything funnels into it) and *The Atoll* (corner bases, a zig-zag road through a big
+central island, outlying islets reached by long bridges). Random maps use the same `MapDef` format; the
+generator rejects any layout the world generator refuses or where tanks cannot drive pad to pad, and
+tries again with the next draw from the same seed, so a seed always gives the same map.
+
+**AI changes found on the new maps.** Patrol tanks near a revealed flag are cleared before the jeep
+goes; a vehicle told to go home while still on its pad drives off first (it cannot dock without having
+left); a tower the AI keeps retreating from costs more next time, so it tries another one instead of
+repeating a losing attack. A broader change (guard-aware targeting and longer launcher standoff) made
+the AI worse in measurement and was reverted.
+
+**Graphics "low"** turns off shadows and the explosion point lights (the only lighting particles have),
+renders at device-pixel-ratio 1 and halves particle counts; a test checks this and that switching to
+"high" mid-match turns them back on. Frame-rate targets could not be confirmed without a GPU; see
+milestone 2.
+
+**Subfolder hosting.** Vite builds with a relative base (`./`); fonts are bundled, models and music are
+fetched relative to the page. A test serves `dist/` from `/games/mivtza/` with a plain static server and
+plays a few seconds.
+
+**The two-player test** drives player 1 with the keyboard and player 2 with a simulated gamepad (the
+page's `navigator.getGamepads` is replaced before load). Player 2 keeps sending jeeps into player 1's
+guns until none are left, so the match ends with a real `noJeeps` victory. Routes for the simulated
+player come from the sim's own A* on an identical world. It runs at `?speed=6` because the CI browser
+renders on the CPU.

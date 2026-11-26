@@ -14,6 +14,7 @@ export type BayMode = 'start' | 'dock' | 'lost' | 'win' | 'lose';
 export interface LayerCallbacks {
   select(t: VehicleType): void;
   again(): void;
+  toMenu(): void;
   toggleSound(): boolean;
 }
 
@@ -37,15 +38,20 @@ export class PlayerLayer {
   private cards: HTMLDivElement;
   private cardEls = {} as Record<VehicleType, { b: HTMLButtonElement; n: HTMLSpanElement }>;
   private again: HTMLButtonElement;
+  private toMenu: HTMLButtonElement;
   private sound: HTMLButtonElement;
+  private help: HTMLParagraphElement;
+  readonly players: 1 | 2;
+  private endRow!: HTMLDivElement;
   private cb: LayerCallbacks;
   mode: BayMode | null = null;
   /** Name of the last lost vehicle and how, for the "lost" bay. */
   lost: { type: VehicleType; cause: 'destroyed' | 'drowned' | 'fuel' } | null = null;
 
-  constructor(parent: HTMLElement, side: Side, cb: LayerCallbacks) {
+  constructor(parent: HTMLElement, side: Side, cb: LayerCallbacks, players: 1 | 2 = 1) {
     this.side = side;
     this.cb = cb;
+    this.players = players;
     this.el = document.createElement('div');
     this.el.className = 'layer';
     this.el.dataset.side = String(side);
@@ -115,17 +121,27 @@ export class PlayerLayer {
     this.again.className = 'primary';
     this.again.textContent = he.menu.again;
     this.again.addEventListener('click', () => this.cb.again());
+    this.toMenu = document.createElement('button');
+    this.toMenu.type = 'button';
+    this.toMenu.className = 'ghost';
+    this.toMenu.textContent = he.menu.toMenu;
+    this.toMenu.addEventListener('click', () => this.cb.toMenu());
+    const endRow = div('actions');
+    endRow.append(this.again, this.toMenu);
     const foot = div('foot');
     const help = p('');
     help.textContent = he.menu.help;
+    this.help = help;
     this.sound = document.createElement('button');
     this.sound.type = 'button';
     this.sound.className = 'ghost';
+    this.sound.dataset.action = 'sound';
     this.sound.textContent = he.menu.soundOn;
     this.sound.setAttribute('aria-pressed', 'true');
     this.sound.addEventListener('click', () => this.setSound(this.cb.toggleSound()));
     foot.append(help, this.sound);
-    sheet.append(this.eyebrow, this.title, this.body, this.note, this.cards, this.again, foot);
+    sheet.append(this.eyebrow, this.title, this.body, this.note, this.cards, endRow, foot);
+    this.endRow = endRow;
     this.menu.append(sheet);
     this.el.append(this.menu);
     this.menu.hidden = true;
@@ -146,16 +162,17 @@ export class PlayerLayer {
     this.toastT = sec;
   }
 
-  openBay(mode: BayMode, s: GameState, extra?: { time?: number; reason?: 'flagCaptured' | 'noJeeps' }) {
+  openBay(mode: BayMode, s: GameState, extra?: { time?: number; reason?: 'flagCaptured' | 'noJeeps'; winner?: Side }) {
     this.mode = mode;
     const end = mode === 'win' || mode === 'lose';
     const m = he.menu;
     let eyebrow = '';
     let title = '';
     let body = '';
+    const two = this.players === 2;
     if (mode === 'start') {
-      eyebrow = m.startEyebrow;
-      title = he.title;
+      eyebrow = two ? he.player(this.side + 1) : m.startEyebrow;
+      title = two ? m.dockTitle : he.title;
       body = m.startBody;
     } else if (mode === 'dock') {
       eyebrow = m.dockEyebrow;
@@ -166,12 +183,12 @@ export class PlayerLayer {
       title = this.lost ? he.lostTitle(he.vehicles[this.lost.type].name, this.lost.cause) : m.dockTitle;
       body = m.lostBody;
     } else if (mode === 'win') {
-      eyebrow = m.winEyebrow;
-      title = m.winTitle;
+      eyebrow = two ? `${he.player(this.side + 1)} · ${m.winEyebrow}` : m.winEyebrow;
+      title = two ? m.winOther(this.side + 1) : m.winTitle;
       body = m.winBody(he.time(extra?.time ?? s.time));
     } else {
-      eyebrow = m.loseEyebrow;
-      title = m.loseTitle;
+      eyebrow = two ? `${he.player(this.side + 1)} · ${m.loseEyebrow}` : m.loseEyebrow;
+      title = two && extra?.winner !== undefined ? m.winOther(extra.winner + 1) : m.loseTitle;
       body = extra?.reason === 'noJeeps' ? m.loseJeeps : m.loseFlag;
     }
     this.eyebrow.textContent = eyebrow;
@@ -181,7 +198,8 @@ export class PlayerLayer {
     this.note.hidden = end || mode === 'start';
     this.note.textContent = foeFlag.state === 'ground' ? m.flagExposed : m.towersLeft(s.sides[otherSide(this.side)].towersLeft);
     this.cards.hidden = end;
-    this.again.hidden = !end;
+    this.endRow.hidden = !end;
+    this.help.hidden = two;
     const stock = s.sides[this.side].stock;
     for (const t of VEHICLE_TYPES) {
       this.cardEls[t].n.textContent = m.stock(stock[t]);
@@ -245,7 +263,7 @@ export class PlayerLayer {
         }
         break;
       case 'vehicleSpawned':
-        if (e.side === me && s.time < 2) this.say(msg.intro, 5);
+        if (e.side === me && s.time < 2) this.say(msg.intro(s.sides[me].padX < s.sides[otherSide(me)].padX), 5);
         break;
     }
   }

@@ -36,8 +36,12 @@ if (!webglAvailable()) {
   const quality = q === 'low' || q === 'medium' || q === 'high' ? (q as Quality) : undefined;
   const d = params.get('difficulty');
   const difficulty = d === 'easy' || d === 'medium' || d === 'hard' ? d : undefined;
+  const map = params.get('map') ?? undefined;
+  const play = params.get('play');
+  const autostart = play === '1' ? 1 : play === '2' ? 2 : undefined;
+  const speed = params.has('speed') ? Math.min(16, Math.max(0.25, Number(params.get('speed')) || 1)) : undefined;
   loadModels().then(() => {
-    const game = new Game(root, { seed, quality, difficulty });
+    const game = new Game(root, { seed, quality, difficulty, map, autostart, speed });
     game.start();
     // Test and debugging hook (read-only use by Playwright).
     (window as unknown as { __mivtza: Game }).__mivtza = game;

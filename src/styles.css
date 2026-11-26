@@ -130,3 +130,31 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   .card small { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+/* ---- full-screen screens: main menu, settings, pause ---- */
+.screens { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.screens > .screen { pointer-events: auto; }
+.screen.main { background: linear-gradient(#0a1416cc, #0a141666 45%, #0a1416cc); }
+.screen.pause { background: #0a1416d0; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.primary.alt { background: none; color: var(--paper); border: 1px solid var(--paper); }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.label { font-size: 12px; color: var(--dim); letter-spacing: .04em; margin: 0; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { background: #1a2c30; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; font-size: 14px; }
+.seg button[aria-checked=true] { border-color: var(--gold); color: var(--gold); }
+.row { display: flex; align-items: center; gap: 10px; justify-content: space-between; min-height: 30px; }
+.small { font-size: 12.5px !important; color: var(--dim); line-height: 1.45 !important; }
+.slider { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 10px; font-size: 14px; }
+.slider input { width: 100%; accent-color: var(--gold); }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.check input { accent-color: var(--gold); width: 18px; height: 18px; }
+
+/* ---- split screen ---- */
+#game.split .layer { outline: 1px solid #000; }
+#game.split .stat { width: 150px; padding: 6px 8px; }
+#game.split .minimap { width: 96px; height: 56px; }
+#game.split .sheet { padding: 14px; gap: 9px; }
+#game.split .sheet h1 { font-size: clamp(24px, 5vw, 34px); }
+#game.split .sheet p { font-size: 13.5px; }
+#game.split .card small { display: none; }

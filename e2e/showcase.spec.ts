@@ -53,7 +53,7 @@ test('music follows the vehicle, stops at the bunker, and one control mutes ever
   await expect.poll(music).toBe('tank');
   // Mute from the bay's sound button: master output goes to zero.
   await game(page, `g.state.sides[0].vehicle.left = true;`);
-  await page.locator('.layer[data-side="0"] .menu button.ghost').click();
+  await page.locator('.layer[data-side="0"] [data-action=sound]').click();
   await expect.poll(() => page.evaluate(() => (window as any).__mivtza.audio.level)).toBe(0);
   const gain = await page.evaluate(() => new Promise<number>((r) => setTimeout(() => r((window as any).__mivtza.audio['master'].gain.value), 300)));
   expect(gain).toBeLessThan(0.01);
