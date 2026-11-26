@@ -9,7 +9,6 @@ import { MATERIALS, ModelBuilder, mesh } from './build';
 import { PALETTES, flagModel, structureGeometry, treeGeometries } from './models';
 import { CHUNK, G, Terrain } from './terrain';
 
-const TREE_GEO = treeGeometries();
 
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const UP = new THREE.Vector3(0, 1, 0);
@@ -147,7 +146,7 @@ export class WorldView {
     if (!ch.tiles.size) return;
     const W = this.state.world.W;
     const b = new ModelBuilder();
-    const tg = TREE_GEO;
+    const tg = treeGeometries();
     for (const i of ch.tiles) {
       const tx = i % W;
       const ty = Math.floor(i / W);
@@ -156,9 +155,9 @@ export class WorldView {
       const x = (tx + 0.5) * TILE + (n - 0.5) * 9;
       const z = (ty + 0.5) * TILE + (hash2(ty, tx) - 0.5) * 9;
       const gy = this.terrain.heightAt(x, z) - 0.5;
-      b.add(tg.trunk.clone(), '#5b4630', x, gy + 5 * sc, z, { sx: sc, sy: sc, sz: sc });
-      b.add(tg.crown1.clone(), i % 3 ? '#2f5a30' : '#3b6a35', x, gy + 17 * sc, z, { sx: sc, sy: sc, sz: sc, ry: n * 6 });
-      b.add(tg.crown2.clone(), i % 2 ? '#3f7538' : '#4a8040', x, gy + 29 * sc, z, { sx: sc * 0.7, sy: sc * 0.8, sz: sc * 0.7, ry: n * 9 });
+      // Pines dominate; roughly one tree in four is broadleaf.
+      const g = tg[hash2(tx * 3.1, ty * 1.7) < 0.27 ? 1 : 0];
+      b.add(g.clone(), null, x, gy, z, { sx: sc, sy: sc * (0.9 + n * 0.25), sz: sc, ry: n * 6 });
     }
     ch.mesh = mesh(b.build(), MATERIALS.matte);
     this.group.add(ch.mesh);

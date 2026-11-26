@@ -2,6 +2,7 @@ import './styles.css';
 import { Game } from './app/game';
 import { he } from './i18n/he';
 import type { Quality } from './render/renderer';
+import { loadModels } from './render/models';
 
 document.title = he.docTitle;
 const root = document.getElementById('game')!;
@@ -33,8 +34,10 @@ if (!webglAvailable()) {
   const seed = params.has('seed') ? Number(params.get('seed')) : undefined;
   const q = params.get('quality');
   const quality = q === 'low' || q === 'medium' || q === 'high' ? (q as Quality) : undefined;
-  const game = new Game(root, { seed, quality });
-  game.start();
-  // Test and debugging hook (read-only use by Playwright).
-  (window as unknown as { __mivtza: Game }).__mivtza = game;
+  loadModels().then(() => {
+    const game = new Game(root, { seed, quality });
+    game.start();
+    // Test and debugging hook (read-only use by Playwright).
+    (window as unknown as { __mivtza: Game }).__mivtza = game;
+  });
 }

@@ -8,6 +8,8 @@ import { GamepadDevice } from '../input/gamepad';
 import { KeyboardDevice } from '../input/keyboard';
 import { PlayerInput } from '../input/player-input';
 import { PlayerLayer } from '../ui/player-layer';
+import { AudioEngine } from '../audio/audio';
+import { HEIGHT } from '../sim/tuning';
 import { EventBus } from './bus';
 import { IdleController, type Controller } from './controllers';
 
@@ -39,7 +41,10 @@ export class Game {
   readonly stats = { fps: 0, frames: 0, frameMs: 0, ticks: 0, cpuMs: 0, calls: 0, triangles: 0 };
   private fpsAcc = 0;
   private fpsN = 0;
-  soundOn = true;
+  readonly audio = new AudioEngine();
+  /** Seconds the laughing skull has been showing per side, or null. */
+  private skullT: Record<Side, number | null> = { 0: null, 1: null };
+  private winFx = 0;
   private reducedMotion: boolean;
 
   constructor(root: HTMLElement, cfg: GameConfig = {}) {
@@ -53,11 +58,22 @@ export class Game {
     this.renderer = new GameRenderer(this.canvas, cfg.quality ?? defaultQuality(), this.reducedMotion);
     this.bus.on((ev) => this.renderer.onEvents(ev));
     this.bus.on((ev) => this.onEvents(ev));
+    this.bus.on((ev) => this.audio.onEvents(ev));
+    // Browsers only allow audio after a gesture.
+    const unlock = () => this.audio.unlock();
+    addEventListener('pointerdown', unlock, { capture: true });
+    addEventListener('keydown', unlock, { capture: true });
     const layer = new PlayerLayer(root, 0, {
       select: (t) => this.inputs[0].select(t),
       again: () => this.newGame((Math.random() * 2 ** 31) | 0),
-      toggleSound: () => (this.soundOn = !this.soundOn),
+      toggleSound: () => {
+        this.audio.unlock();
+        this.audio.setMuted(!this.audio.muted);
+        return !this.audio.muted;
+      },
     });
+    layer.setSound(!this.audio.muted);
+    layer.el.addEventListener('pointerdown', () => this.skipSkull(layer.side));
     this.layers = [layer];
     this.inputs = [new PlayerInput([this.keyboard, layer.touch, this.pads[0]])];
     addEventListener('resize', () => this.resize());
@@ -72,6 +88,9 @@ export class Game {
     this.acc = 0;
     this.slowT = 0;
     this.deadT = { 0: 0, 1: 0 };
+    this.skullT = { 0: null, 1: null };
+    this.winFx = 0;
+    this.audio.stopMusic();
     for (const l of this.layers) l.openBay('start', this.state);
   }
 
@@ -143,6 +162,8 @@ export class Game {
     this.gamepadMenus();
     for (const l of this.layers) l.update(dt, this.state, this.time);
     this.updateBays(dt);
+    this.updateFx(dt);
+    this.audio.update(this.layers.map((l) => ({ side: l.side, x: this.renderer.cameras[l.side]?.x ?? 0, y: this.renderer.cameras[l.side]?.y ?? 0 })));
     this.renderer.draw(dt, this.time, this.views(), this.layers.every((l) => l.mode === 'start' || l.mode === 'win'));
   }
 
@@ -193,7 +214,15 @@ export class Game {
         const l = this.layers[e.side];
         if (l && this.state.winner === -1) l.openBay('dock', this.state);
       } else if (e.type === 'gameOver') {
-        for (const l of this.layers) l.openBay(e.winner === l.side ? 'win' : 'lose', this.state, { reason: e.reason });
+        for (const l of this.layers) {
+          const won = e.winner === l.side;
+          l.openBay(won ? 'win' : 'lose', this.state, { reason: e.reason });
+          if (won) this.winFx = 12;
+          else {
+            this.skullT[l.side] = 0;
+            this.audio.laugh();
+          }
+        }
       }
     }
   }
@@ -208,14 +237,40 @@ export class Game {
         continue;
       }
       this.deadT[l.side] += dt;
-      if (this.deadT[l.side] > 1.5 && sd.respawn <= 0) l.openBay('lost', this.state);
+      const sk = this.skullT[l.side];
+      if (sk === null) {
+        // Let the wreck burn for a moment, then the skull laughs.
+        if (this.deadT[l.side] > 1.5) {
+          this.skullT[l.side] = 0;
+          this.audio.laugh();
+        }
+      } else if (sk > 3.2 && sd.respawn <= 0) this.skipSkull(l.side, true);
+    }
+  }
+
+  /** Tap to dismiss the skull (after a short grace period) and open the bay. */
+  private skipSkull(side: Side, force = false) {
+    const t = this.skullT[side];
+    if (t === null || this.state.winner !== -1 || (!force && t < 0.6)) return;
+    this.skullT[side] = null;
+    this.layers[side]?.openBay('lost', this.state);
+  }
+
+  private updateFx(dt: number) {
+    for (const side of [0, 1] as Side[]) if (this.skullT[side] !== null) this.skullT[side]! += dt;
+    // Victory fireworks over the winner's pad.
+    if (this.winFx > 0 && this.state.winner !== -1) {
+      this.winFx -= dt;
+      const sd = this.state.sides[this.state.winner];
+      if (Math.random() < dt * 3)
+        this.renderer.effects?.boom(sd.padX + (Math.random() - 0.5) * 300, sd.padY + (Math.random() - 0.5) * 300, 1.3, HEIGHT.ground + 70 + Math.random() * 80, true);
     }
   }
 
   private views(): ViewSpec[] {
     const w = this.root.clientWidth;
     const h = this.root.clientHeight;
-    return [{ side: 0, x: 0, y: 0, w, h }];
+    return [{ side: 0, x: 0, y: 0, w, h, skull: this.skullT[0] }];
   }
 
   resize() {

@@ -256,6 +256,10 @@ export class PlayerLayer {
       if (this.toastT <= 0) this.toast.classList.remove('on');
     }
     const v = s.sides[this.side].vehicle;
+    if (!v && !this.hud.hidden) {
+      this.hud.hidden = true;
+      this.touch.setVisible(false);
+    }
     if (!v || this.hud.hidden) return;
     const spec = VEHICLES[v.type];
     this.hp.style.transform = `scaleX(${Math.max(0, v.hp / spec.hp)})`;

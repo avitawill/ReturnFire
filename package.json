@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test --trace off"
+    "e2e": "playwright test --trace off",
+    "models": "node scripts/run.mjs scripts/build-models.ts"
   },
   "dependencies": {
     "three": "^0.187.0"

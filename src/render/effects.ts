@@ -271,6 +271,14 @@ export class Effects {
       case 'structureDestroyed':
         if (e.kind === 'tower') {
           this.spawnDebris(e.x, e.y, 22, G + 25);
+          // A ring of dust rolls out from the base as the walls come down.
+          for (let i = 0; i < 28; i++) {
+            const a = (i / 28) * Math.PI * 2;
+            const v = 40 + Math.random() * 50;
+            this.add({ x: e.x + Math.cos(a) * 26, y: e.y + Math.sin(a) * 26, h: G + 4 + Math.random() * 10, vx: Math.cos(a) * v, vy: Math.sin(a) * v, vh: 8 + Math.random() * 14, life: 2.2 + Math.random(), max: 3, r: 10 + Math.random() * 6, k: 2 });
+          }
+          for (let i = 0; i < 10; i++)
+            this.add({ x: e.x + (Math.random() - 0.5) * 40, y: e.y + (Math.random() - 0.5) * 40, h: G + 20 + Math.random() * 30, vx: 0, vy: 0, vh: 25 + Math.random() * 20, life: 2.5, max: 2.5, r: 14, k: 1 });
           this.fires.push({ x: e.x, y: e.y, h: G + 6, t: 14, acc: 0 });
           if (!this.opts.reducedMotion) this.slowMo = 1;
         }

@@ -105,3 +105,34 @@ under 4× CPU throttle with mobile emulation (6 ms on low), at ~80 draw calls an
 including the shadow pass. That leaves headroom for 30 fps throttled, but the 60 fps and 30 fps targets
 still need confirming on hardware: run `node scripts/perf.mjs <url> [throttle] [mobile]` against
 `npm run preview` on a machine with a GPU.
+
+## Milestone 3: models, effects, audio
+
+**Models are procedural glTF.** The brief allows CC0 packs or procedural models. Kenney and Quaternius
+were not reachable from the build environment, and one consistent style beats a mix of packs, so every
+model is defined in `src/render/modeldefs.ts`, exported by `npm run models` (a ~150-line GLB writer in
+`scripts/glb.ts`, no new dependencies) to `public/models/models.glb`, and loaded at startup with
+Three's GLTFLoader. Parts that move are separate named nodes (`turret`, `rotor`, `tailRotor`, `head`).
+Team colours and wrecks are baked as variants (`tank.0`, `tank.1`, `tank.wreck`, ...) because vertex
+colours are cheaper than per-instance materials. GLTFLoader renames repeated node names (`base_1`),
+so lookups match by prefix.
+
+**Music.** Recordings are used where a public-domain or CC0 *recording* could be verified and
+downloaded: helicopter (Valkyries, Edison 1921) and jeep (Bumblebee, US Air Force Band). Wikimedia's
+rate limiting stopped the Mars and Mountain King downloads; both have verified candidates listed in
+ASSETS.md, and until they are added the tank and launcher play the prototype's synthesised arrangements.
+Recordings loop; synthesised tunes loop (Mountain King speeds up each pass, as in the prototype).
+Music starts when a vehicle launches and stops when it docks, is lost, or the game ends.
+
+**Sound effects are synthesised** (no sample files) and attenuated by distance from the nearest
+player's camera; machine-gun sounds are rate-limited so a long burst does not saturate the mix.
+
+**One mute control.** Everything (effects, music, laugh) goes through one master gain; the sound
+button in the bay sets it to zero. The choice is remembered in `localStorage`.
+
+**Skull.** As in the prototype: when a vehicle is lost the wreck burns for 1.5 s, then the skull
+laughs for about 3 s (tap to skip after 0.6 s) before the bay opens. On defeat the skull stays behind
+the end screen. On victory, fireworks go off over the winner's pad for 12 s.
+
+**Tower collapse:** the tower sinks and tilts over 1.25 s while the sim slows to 30 % for a second
+(single player), with debris, a ring of dust, fire and smoke for 14 s, a scorch mark and rubble.

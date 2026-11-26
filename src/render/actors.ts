@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { Tile, type GameState, type Side, type Vehicle } from '../sim/entities';
 import type { SimEvent } from '../sim/events';
 import { HEIGHT, TILE, VEHICLES, VEHICLE_TYPES, type VehicleType } from '../sim/tuning';
-import { flagModel, PALETTES, vehicleModel, WRECK, type VehicleModel } from './models';
+import { flagModel, vehicleModel, type VehicleModel } from './models';
 import type { Terrain } from './terrain';
 
 const G = HEIGHT.ground;
@@ -45,7 +45,7 @@ export class ActorView {
     const mk = (side: Side) => {
       const out = {} as Record<VehicleType, VehicleModel>;
       for (const t of VEHICLE_TYPES) {
-        const m = vehicleModel(t, PALETTES[side]);
+        const m = vehicleModel(t, side);
         m.root.visible = false;
         this.group.add(m.root);
         out[t] = m;
@@ -124,6 +124,7 @@ export class ActorView {
       }
       if (m.turret) m.turret.rotation.y = -(v.ta - v.a);
       if (m.rotor) m.rotor.rotation.y += dt * 28;
+      if (m.tailRotor) m.tailRotor.rotation.z += dt * 40;
       if (v.wet && v.sink === 0) {
         const w = this.wakes[side];
         w.visible = true;
@@ -138,7 +139,7 @@ export class ActorView {
       seen.add(u.id);
       let m = this.units.get(u.id);
       if (!m) {
-        m = vehicleModel(u.kind === 'drone' ? 'drone' : 'ptank', PALETTES[u.side]);
+        m = vehicleModel(u.kind === 'drone' ? 'drone' : 'ptank', u.side);
         this.group.add(m.root);
         this.units.set(u.id, m);
       }
@@ -234,7 +235,7 @@ export class ActorView {
 
   private addWreck(kind: 'ptank' | VehicleType, x: number, y: number, a: number, ta: number) {
     if (this.tile(x, y) === Tile.Water) return;
-    const w = vehicleModel(kind, WRECK);
+    const w = vehicleModel(kind, 'wreck');
     w.root.position.set(x, Math.max(1, this.terrain.heightAt(x, y)) - 1, y);
     w.root.rotation.set(0.12, -a, 0.1);
     if (w.turret) w.turret.rotation.y = -(ta - a) + 0.6;

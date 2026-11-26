@@ -8,6 +8,7 @@ import { TILE, VEHICLES } from '../sim/tuning';
 import { ActorView } from './actors';
 import { FollowCamera } from './camera';
 import { Effects } from './effects';
+import { SkullScene } from './skull';
 import { WorldView } from './worldview';
 
 export type Quality = 'low' | 'medium' | 'high';
@@ -31,6 +32,8 @@ export const QUALITY: Record<Quality, QualityPreset> = {
 export interface ViewSpec {
   /** Whose vehicle this view follows. */
   side: Side;
+  /** Seconds since the laughing skull appeared in this view, or null. */
+  skull?: number | null;
   /** Viewport in CSS pixels, origin top-left. */
   x: number;
   y: number;
@@ -50,6 +53,7 @@ export class GameRenderer {
   private preset: QualityPreset;
   private reducedMotion: boolean;
   quality: Quality;
+  private skullScene: SkullScene | null = null;
 
   constructor(canvas: HTMLCanvasElement, quality: Quality, reducedMotion: boolean) {
     this.quality = quality;
@@ -123,6 +127,15 @@ export class GameRenderer {
     this.renderer.info.autoReset = false;
     this.renderer.info.reset();
     for (const v of views) {
+      const y0 = size.y - v.y - v.h;
+      if (v.skull != null) {
+        this.skullScene ??= new SkullScene();
+        this.skullScene.pose(v.skull, v.w / Math.max(1, v.h));
+        this.renderer.setViewport(v.x, y0, v.w, v.h);
+        this.renderer.setScissor(v.x, y0, v.w, v.h);
+        this.renderer.render(this.skullScene.scene, this.skullScene.camera);
+        continue;
+      }
       const cam = this.cameras[v.side];
       cam.resize(v.w, v.h);
       cam.orbit = orbit;
