@@ -11,11 +11,13 @@ import { PlayerLayer } from '../ui/player-layer';
 import { AudioEngine } from '../audio/audio';
 import { HEIGHT } from '../sim/tuning';
 import { EventBus } from './bus';
-import { IdleController, type Controller } from './controllers';
+import { AiController, type Controller } from './controllers';
+import type { Difficulty } from '../sim/ai/commander';
 
 export interface GameConfig {
   seed?: number;
   quality?: Quality;
+  difficulty?: Difficulty;
 }
 
 const MAX_STEPS_PER_FRAME = 8;
@@ -28,7 +30,8 @@ export class Game {
   state!: GameState;
   layers: PlayerLayer[] = [];
   inputs: PlayerInput[] = [];
-  opponent: Controller = new IdleController();
+  opponent!: Controller;
+  difficulty: Difficulty;
   private keyboard = new KeyboardDevice();
   private pads: GamepadDevice[] = [new GamepadDevice(0)];
   private acc = 0;
@@ -49,6 +52,7 @@ export class Game {
 
   constructor(root: HTMLElement, cfg: GameConfig = {}) {
     this.root = root;
+    this.difficulty = cfg.difficulty ?? 'medium';
     root.dir = 'rtl';
     root.lang = 'he';
     this.canvas = document.createElement('canvas');
@@ -83,6 +87,7 @@ export class Game {
 
   newGame(seed: number) {
     this.state = createGame({ seed });
+    this.opponent = new AiController(1, this.difficulty, seed);
     this.renderer.setState(this.state);
     for (const i of this.inputs) i.reset();
     this.acc = 0;

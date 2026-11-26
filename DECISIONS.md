@@ -136,3 +136,49 @@ the end screen. On victory, fireworks go off over the winner's pad for 12 s.
 
 **Tower collapse:** the tower sinks and tilts over 1.25 s while the sim slows to 30 % for a second
 (single player), with debris, a ring of dust, fire and smoke for 14 s, a scorch mark and rubble.
+
+## Milestone 4: AI opponent
+
+**Where it lives.** `src/sim/ai/commander.ts` is pure and deterministic (its own seeded RNG, no
+wall clock), so AI matches run headless in tests. It only acts through `Intent`s, the same channel as
+a human, so it is bound by the same stock, fuel, armour and docking rules.
+
+**What it may know.** What a player can see: the map, all structures, both commander vehicles, and
+flags once revealed. It never reads `hasFlag` or a hidden flag's `towerId`/position; a test moves the
+hidden flag to another tower and checks that every AI intent is identical until a tower falls.
+
+**How it plays.**
+- *Search*: picks the enemy tower with the lowest cost (distance + 220 per gun/patrol tank covering
+  it; AA counts for helicopters). Tanks and launchers besiege: they knock out each gun near the target
+  from just outside its reach (tank turret 235 vs gun 215; launcher rockets 420), then the tower.
+  Paths that are walled off are breached by shooting the blocking wall.
+- *Vehicle choice by purpose*: tank/launcher to breach, helicopter for towers with no anti-air (and to
+  intercept), jeep only to grab a revealed flag after the guns around it are cleared.
+- *Defend*: when its flag is being carried, or is exposed while an enemy jeep is out, it hunts the
+  enemy vehicle (helicopter first, then launcher, then tank); a launcher drops mines by its exposed flag.
+- *Self-preservation*: goes home to repair/refuel at 30 % armour, when out of ammo, or when fuel would
+  not last the trip back.
+- *Movement*: A* paths (see milestone 1), heavy vehicles turn almost in place before driving so they
+  stay on the path, routes avoid the side's own pad (driving over it after leaving docks the vehicle),
+  a watchdog turns away and replans after 1.6 s without progress, and a reflex stops tanks and
+  launchers from driving into the sea.
+
+**Difficulty = reaction time and aim only.** Reaction is intent latency (hard 0.1 s, medium 0.3 s,
+easy 1 s) plus how often the situation is reassessed (0.3 / 0.6 / 3 s). Aim is a slowly wandering
+error on hull-mounted weapons (±0.03 / ±0.12 / ±0.6 rad) and the heading error at which it fires.
+Turret auto-aim and homing rockets are vehicle features and work the same for everyone. Reflexes
+that keep a vehicle out of the sea act on the current state, not the delayed decision; otherwise easy
+tanks drove off bridges because of their own latency.
+
+**The "scripted competent player"** used in tests (`tests/helpers/scripted.ts`) knows which tower
+hides the AI's flag (that is its scripted knowledge) and plays sensibly: launcher-first sieges from
+outside gun range, repairs at 40 % armour, clears guns and patrol tanks around the revealed flag, and
+hunts the enemy's vehicle with a launcher before sending the jeep. Measured over 30 seeds it beats easy
+AI 25 times; the required test uses seeds 1–10.
+
+**Results (seeds 1–10).** AI vs AI (medium): 10/10 decided within 15 simulated minutes, typically
+4–12 minutes; most end when one side has thrown away its last jeep, which matches the prototype's rule.
+Hard AI vs do-nothing: 10/10 (3–7 minutes). No AI ground vehicle was stuck for 20 s in any match.
+
+**Single player** fights the AI as the east side; difficulty is `?difficulty=easy|medium|hard` until
+the settings menu exists (milestone 5).

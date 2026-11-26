@@ -219,6 +219,8 @@ export interface PathOptions {
    * at BREACH_COST: the mover intends to shoot its way through them.
    */
   breach?: (structIndex: number) => boolean;
+  /** Extra cost per tile (e.g. to keep away from your own pad, where driving over it docks). */
+  extra?: (tile: number) => number;
   maxNodes?: number;
 }
 
@@ -226,6 +228,11 @@ export const BREACH_COST = 7;
 
 /** Cost of entering a tile, or Infinity when impassable. */
 export function tileCost(w: World, i: number, mover: Mover, opts?: PathOptions): number {
+  const c = baseCost(w, i, mover, opts);
+  return opts?.extra && Number.isFinite(c) ? c + opts.extra(i) : c;
+}
+
+function baseCost(w: World, i: number, mover: Mover, opts?: PathOptions): number {
   if (w.block[i]) return opts?.breach && opts.breach(w.block[i] - 1) ? BREACH_COST : Infinity;
   const t = w.tiles[i];
   if (t === Tile.Water) return mover === 'jeep' ? 2.2 : Infinity;

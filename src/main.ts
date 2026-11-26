@@ -34,8 +34,10 @@ if (!webglAvailable()) {
   const seed = params.has('seed') ? Number(params.get('seed')) : undefined;
   const q = params.get('quality');
   const quality = q === 'low' || q === 'medium' || q === 'high' ? (q as Quality) : undefined;
+  const d = params.get('difficulty');
+  const difficulty = d === 'easy' || d === 'medium' || d === 'hard' ? d : undefined;
   loadModels().then(() => {
-    const game = new Game(root, { seed, quality });
+    const game = new Game(root, { seed, quality, difficulty });
     game.start();
     // Test and debugging hook (read-only use by Playwright).
     (window as unknown as { __mivtza: Game }).__mivtza = game;
