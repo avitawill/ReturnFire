@@ -67,3 +67,41 @@ a high cost and reports which structure blocks the next step, so the driver can 
 
 **TypeScript 5.9**, not 7.0: 7.0 is the new native compiler and the Vite/Vitest toolchain is
 validated against 5.x. Revisit later.
+
+## Milestone 2: render and controls
+
+**Rendering split.** `src/render` builds its scene from a `GameState` once, then reads positions each frame
+and reacts to sim events (`treeCrushed`, `structureDestroyed`, `explosion`, ...) for discrete changes.
+It never writes to the state. Effects use `Math.random`; they are not part of the deterministic sim.
+
+**Terrain** is a heightfield with two vertices per tile edge. Heights come from distance to the shore
+(land rises over two tiles, sea deepens over four), blurred near the coast so shorelines are curves
+rather than tile steps. Sand is coloured by height, not by tile, for the same reason. Roads, pads and
+the ground under structures stay exactly at deck height. The terrain and trees are split into 16×16-tile
+chunks so off-screen parts are frustum-culled; trees in a chunk are one merged mesh, rebuilt when one
+is crushed.
+
+**Camera.** Same tilt and distances as the prototype (elevation 0.7, distance 480–1100 depending on
+aspect ratio), with the heading fixed north-up in play. Portrait screens get a slightly closer camera
+(half-width 170 instead of 200 world units) so vehicles are not tiny on phones. The camera only orbits
+on the start and victory screens.
+
+**Single player pauses while choosing a vehicle**, as the prototype did. (Split screen will not pause.)
+
+**Input.** Keyboard: arrows or WASD, Space/J fire, M/E/K mine, Escape/P pause. Gamepad (standard
+mapping): left stick or D-pad, A/RT/RB fire, B/X/LT/LB mine, Start pause; it also navigates the bay.
+Touch: drag on the left 60 % of the view for a floating stick; fire and mine buttons on the right.
+On-screen buttons are shown only on coarse-pointer devices or after a touch.
+
+**Quality presets** (selectable with `?quality=low|medium|high`, menu setting in milestone 5):
+high = 2048 shadow map, DPR ≤ 2, explosion lights; medium = 1024 shadow map, DPR ≤ 1.5 (default on touch
+devices); low = no shadows, no explosion lights, DPR 1, half the particles. Three.js r187 dropped
+`PCFSoftShadowMap`; PCF with a blur radius is used instead.
+
+**Performance could not be measured on a real GPU here.** The container has no GPU; Chromium renders
+with SwiftShader on the CPU, which manages 3–11 fps for this scene regardless of optimisation (it is
+fill-rate bound). What can be measured is main-thread cost: about 4–5 ms per frame on desktop, 10 ms
+under 4× CPU throttle with mobile emulation (6 ms on low), at ~80 draw calls and ~80k triangles
+including the shadow pass. That leaves headroom for 30 fps throttled, but the 60 fps and 30 fps targets
+still need confirming on hardware: run `node scripts/perf.mjs <url> [throttle] [mobile]` against
+`npm run preview` on a machine with a GPU.
