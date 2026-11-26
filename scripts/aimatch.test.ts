@@ -7,7 +7,7 @@ test('ai matches', () => {
   const n = Number(process.env.N ?? 10);
   for (let seed = 1; seed <= n; seed++) {
     const t0 = Date.now();
-    const r = playMatch(seed, p0, p1, Number(process.env.MIN ?? 15));
+    const r = playMatch(seed, p0, p1, Number(process.env.MIN ?? 15), process.env.MAP);
     console.log(`seed ${seed}: winner ${r.winner} ${r.reason ?? ''} ${r.minutes.toFixed(1)}min towersLeft ${r.towersLeft} lost ${r.lost} stuck ${JSON.stringify(r.stuck.slice(0, 3))} (${Date.now() - t0}ms)`);
   }
 }, 600_000);

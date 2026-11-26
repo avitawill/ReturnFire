@@ -62,6 +62,8 @@ export class AiCommander {
   private lastPos = { x: 0, y: 0, t: 0 };
   private unstickT = 0;
   private unstickDir = 1;
+  /** Sorties against a target that ended in retreat. Makes the AI try another tower. */
+  private failures = new Map<number, number>();
   debug: AiDebug = { mode: 'idle', hasDestination: false, target: -1 };
 
   constructor(side: Side, difficulty: Difficulty = 'medium', seed = 1) {
@@ -160,7 +162,7 @@ export class AiCommander {
     for (const st of s.structs) {
       if (st.kind !== 'tower' || st.side !== foe || !st.alive) continue;
       const threat = this.threatNear(s, st.x, st.y, heli);
-      const cost = dist(origin.x, origin.y, st.x, st.y) + threat * 220;
+      const cost = dist(origin.x, origin.y, st.x, st.y) + threat * 220 + (this.failures.get(st.id) ?? 0) * 300;
       if (!best || cost < best.cost) best = { st, cost, threat };
     }
     return best;
@@ -194,7 +196,12 @@ export class AiCommander {
     this.thinkT -= 1 / 60;
     if (this.thinkT <= 0) {
       this.thinkT = this.spec.think;
+      const before = this.mode;
+      const target = this.target;
       this.plan(s, v);
+      // Retreating from a tower that still stands counts against it next time.
+      if (before === 'attack' && this.mode === 'home' && target > 0 && s.structs[target - 1]?.alive)
+        this.failures.set(target, (this.failures.get(target) ?? 0) + 1);
     }
     this.debug.mode = this.mode;
     this.debug.target = this.target;
@@ -235,9 +242,13 @@ export class AiCommander {
     if (flag && flag.state === 'ground') {
       // Clear the guns around the flag, then go home for a jeep.
       const g = this.nearestDefender(s, flag.x, flag.y, 240);
+      const u = this.nearestPatrol(s, flag.x, flag.y, 290);
       if (g) {
         this.mode = 'clear';
         this.target = g.id;
+      } else if (u) {
+        this.mode = 'clear';
+        this.target = u.id;
       } else this.mode = 'home';
       return;
     }
@@ -249,6 +260,21 @@ export class AiCommander {
   private pickTower(s: GameState, v: Vehicle) {
     const best = this.cheapestTower(s, v.type === 'heli', v);
     this.target = best ? best.st.id : -1;
+  }
+
+  private nearestPatrol(s: GameState, x: number, y: number, r: number) {
+    const foe = otherSide(this.side);
+    let best = null;
+    let bd = r;
+    for (const u of s.units)
+      if (u.side === foe && u.kind === 'ptank' && u.hp > 0) {
+        const d = dist(u.x, u.y, x, y);
+        if (d < bd) {
+          bd = d;
+          best = u;
+        }
+      }
+    return best;
   }
 
   private nearestDefender(s: GameState, x: number, y: number, r: number): Structure | null {
@@ -270,6 +296,11 @@ export class AiCommander {
   private act(s: GameState, v: Vehicle, it: Intent) {
     const sd = s.sides[this.side];
     const goHome = () => {
+      if (!v.left) {
+        // Still on the pad: a vehicle has to drive off before it can dock again.
+        it.move = this.travel(s, v, sd.padX + Math.cos(sd.spawnA) * 100, sd.padY + Math.sin(sd.spawnA) * 100, 10);
+        return;
+      }
       it.move = this.travel(s, v, sd.padX, sd.padY, 4);
       it.fire = this.opportunistic(s, v);
     };
@@ -300,7 +331,9 @@ export class AiCommander {
       }
       case 'clear':
       case 'attack': {
-        const t = this.target >= 0 ? s.structs[this.target - 1] : null;
+        const unit = this.mode === 'clear' ? s.units.find((u) => u.id === this.target) : undefined;
+        if (unit) return this.engage(s, v, it, unit.x, unit.y, false, true);
+        const t = this.target >= 0 && this.target <= s.structs.length ? s.structs[this.target - 1] : null;
         if (!t || !t.alive) {
           this.thinkT = 0;
           return goHome();

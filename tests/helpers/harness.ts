@@ -27,8 +27,8 @@ export interface MatchResult {
 const STUCK_SECONDS = 20;
 
 /** Plays a match headless. Tracks AI ground vehicles that stay within one tile for 20 s while they have a destination. */
-export function playMatch(seed: number, p0: PlayerKind, p1: PlayerKind, maxMinutes = 15): MatchResult {
-  const s = createGame({ seed });
+export function playMatch(seed: number, p0: PlayerKind, p1: PlayerKind, maxMinutes = 15, map?: string): MatchResult {
+  const s = createGame({ seed, map });
   const mk = (p: PlayerKind, side: Side) => {
     if (p === 'idle') return () => idleIntent();
     if (p === 'scripted') {

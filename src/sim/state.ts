@@ -1,16 +1,18 @@
 import type { Flag, GameState, Side, SideState, Unit } from './entities';
 import { MAPS, type MapDef } from './maps';
+import { randomMap } from './randommap';
 import { makeRng, rand } from './rng';
 import { DEFENCE, STOCK, TILE } from './tuning';
 import { generateWorld } from './world';
 
 export interface GameOptions {
   seed: number;
+  /** Map name, 'random' (generated from the seed), or a definition. */
   map?: string | MapDef;
 }
 
 export function createGame(opts: GameOptions): GameState {
-  const def = typeof opts.map === 'object' ? opts.map : MAPS[opts.map ?? 'twoShores'];
+  const def = typeof opts.map === 'object' ? opts.map : opts.map === 'random' ? randomMap(opts.seed) : MAPS[opts.map ?? 'twoShores'];
   if (!def) throw new Error(`unknown map ${String(opts.map)}`);
   const seed = opts.seed >>> 0;
   const gen = generateWorld(def, seed);

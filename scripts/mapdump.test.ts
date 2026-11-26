@@ -2,9 +2,11 @@
 import { test } from 'vitest';
 import { generateWorld } from '../src/sim/world';
 import { MAPS } from '../src/sim/maps';
+import { randomMap } from '../src/sim/randommap';
 
 test('dump', () => {
-  for (const def of Object.values(MAPS)) {
+  const defs = process.env.MAP === 'random' ? [randomMap(Number(process.env.SEED ?? 1))] : Object.values(MAPS).filter((d) => !process.env.MAP || d.name === process.env.MAP);
+  for (const def of defs) {
     const g = generateWorld(def, Number(process.env.SEED ?? 1));
     const { W, H, tiles, block } = g.world;
     const ch = ['~', '.', ':', '=', '#', 'T', 'r', 'P'];
