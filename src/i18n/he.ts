@@ -22,6 +22,7 @@ export const he = {
     mine: 'מוקש',
     fire: 'אש',
     minimap: 'מפת האזור',
+    pause: 'השהיה',
   },
 
   main: {

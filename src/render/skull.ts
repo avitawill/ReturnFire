@@ -1,6 +1,7 @@
 // The laughing skull shown when a vehicle is lost and on defeat.
 
 import * as THREE from 'three';
+import { jawOpen, LAUGH_LENGTH } from '../audio/laugh';
 
 export class SkullScene {
   readonly scene = new THREE.Scene();
@@ -55,8 +56,8 @@ export class SkullScene {
 
   /** Pose for time `t` since the skull appeared, in a viewport of aspect `asp`. */
   pose(t: number, asp: number) {
-    const ph = t % 4.2;
-    const open = ph > 0.3 && ph < 2.5 ? Math.abs(Math.sin(((ph - 0.3) / 0.24) * Math.PI)) : 0;
+    // The laugh starts 0.25 s after the skull appears; the jaw follows its syllables.
+    const open = t - 0.25 < LAUGH_LENGTH ? jawOpen(t - 0.25) : 0;
     this.jaw.rotation.x = open * 0.42;
     this.skull.rotation.set(-0.08 - open * 0.1, Math.sin(t * 0.9) * 0.4, Math.sin(t * 0.6) * 0.08);
     // Rises into view during the first second.

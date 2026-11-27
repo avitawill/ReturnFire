@@ -267,6 +267,7 @@ export class Game {
             for (const l of this.layers) l.setSound(!this.audio.muted);
             return !this.audio.muted;
           },
+          pause: () => this.setPaused(true),
         },
         players,
       );

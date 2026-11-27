@@ -16,6 +16,7 @@ export interface LayerCallbacks {
   again(): void;
   toMenu(): void;
   toggleSound(): boolean;
+  pause(): void;
 }
 
 export class PlayerLayer {
@@ -79,7 +80,17 @@ export class PlayerLayer {
     meters.append(span(he.hud.armour), hp.b, span(he.hud.fuel), fu.b, span(he.hud.ammo), this.ammo);
     stat.append(this.name, meters);
     this.minimap = new Minimap(side);
-    this.hud.append(stat, this.minimap.canvas);
+    const pauseBtn = document.createElement('button');
+    pauseBtn.type = 'button';
+    pauseBtn.className = 'pause-btn';
+    pauseBtn.dataset.action = 'pause';
+    pauseBtn.setAttribute('aria-label', he.hud.pause);
+    pauseBtn.title = `${he.hud.pause} (Esc)`;
+    pauseBtn.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="4" width="3.5" height="12" rx="1"/><rect x="11.5" y="4" width="3.5" height="12" rx="1"/></svg>';
+    pauseBtn.addEventListener('click', () => this.cb.pause());
+    const hudSide = div('hud-side');
+    hudSide.append(this.minimap.canvas, pauseBtn);
+    this.hud.append(stat, hudSide);
     this.el.append(this.hud);
 
     this.toast = div('toast');
