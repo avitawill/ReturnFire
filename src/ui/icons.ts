@@ -40,6 +40,27 @@ export function drawVehicleIcon(c: CanvasRenderingContext2D, type: VehicleType) 
     c.fillRect(2, -5, 3, 10);
     c.fillStyle = COL.l;
     c.fillRect(-8, -4, 8, 8);
+  } else if (type === 'fpv') {
+    c.strokeStyle = '#1d2224';
+    c.lineWidth = 2.4;
+    c.beginPath();
+    c.moveTo(-9, -9);
+    c.lineTo(9, 9);
+    c.moveTo(9, -9);
+    c.lineTo(-9, 9);
+    c.stroke();
+    c.fillStyle = '#3a3f41';
+    for (const [x, y] of [[-9, -9], [9, -9], [-9, 9], [9, 9]]) {
+      c.beginPath();
+      c.arc(x, y, 4.2, 0, 7);
+      c.fill();
+    }
+    c.fillStyle = COL.b;
+    c.fillRect(-5, -3.5, 10, 7);
+    c.fillStyle = '#5d6b45';
+    c.fillRect(-2, -1.5, 13, 3);
+    c.fillStyle = '#c9442f';
+    c.fillRect(11, -1.5, 3, 3);
   } else {
     c.fillStyle = COL.d;
     c.fillRect(-20, -1.5, 14, 3);

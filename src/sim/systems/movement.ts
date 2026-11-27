@@ -3,9 +3,9 @@
 import { Tile, type Intent, type Vehicle } from '../entities';
 import type { Ctx } from '../events';
 import { adiff, clamp } from '../math';
-import { PLAYER, TILE, VEHICLES } from '../tuning';
+import { FPV, PLAYER, TILE, VEHICLES } from '../tuning';
 import { tileAt, type Mover } from '../world';
-import { explode, vehicleHeight } from './combat';
+import { detonate, diveContact, explode, vehicleHeight } from './combat';
 import { loseVehicle } from './rules';
 
 /**
@@ -41,6 +41,25 @@ export function moveVehicle(c: Ctx, v: Vehicle, intent: Intent): boolean {
   const s = c.s;
   const dt = c.dt;
   const spec = VEHICLES[v.type];
+  if (v.dive > 0) {
+    // Diving drone: straight down onto whatever is ahead, a little steering allowed.
+    v.dive += dt;
+    const ix = Number.isFinite(intent.move.x) ? intent.move.x : 0;
+    const iy = Number.isFinite(intent.move.y) ? intent.move.y : 0;
+    if (Math.hypot(ix, iy) > PLAYER.deadzone) {
+      const d = adiff(Math.atan2(iy, ix), v.a);
+      const k = spec.turn * FPV.diveTurn * dt;
+      v.a += clamp(d, -k, k);
+    }
+    v.x = clamp(v.x + Math.cos(v.a) * FPV.diveSpeed * dt, 20, s.world.W * TILE - 20);
+    v.y = clamp(v.y + Math.sin(v.a) * FPV.diveSpeed * dt, 20, s.world.H * TILE - 20);
+    v.ta = v.a;
+    if (v.dive >= FPV.diveTime || diveContact(s, v)) {
+      detonate(c, v);
+      return false;
+    }
+    return true;
+  }
   if (v.sink > 0) {
     v.sink += dt;
     if (v.sink > PLAYER.sinkTime) {

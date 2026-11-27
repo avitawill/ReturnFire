@@ -175,3 +175,4 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .pause-btn svg { width: 20px; height: 20px; fill: var(--paper); }
 .pause-btn:hover { border-color: var(--paper); }
 #game.split .pause-btn { width: 36px; height: 36px; }
+.cards .card:last-child:nth-child(odd) { grid-column: 1 / -1; }

@@ -139,3 +139,77 @@ describe('rules', () => {
     expect(s.structs.filter((t) => t.kind === 'tower' && t.side === 0)).toHaveLength(6);
   });
 });
+
+/** A start point 120-150 px from `t` from which the straight line to it crosses no other structure. */
+function clearApproach(s: GameState, t: { id: number; x: number; y: number }) {
+  for (let k = 0; k < 16; k++) {
+    const a = (k / 16) * Math.PI * 2;
+    for (const r of [120, 140]) {
+      const sx = t.x - Math.cos(a) * r;
+      const sy = t.y - Math.sin(a) * r;
+      let ok = true;
+      for (let d = 0; d < r - 20 && ok; d += 6) {
+        const x = sx + Math.cos(a) * d;
+        const y = sy + Math.sin(a) * d;
+        const b = s.world.block[Math.floor(y / TILE) * s.world.W + Math.floor(x / TILE)];
+        if (b && s.structs[b - 1].id !== t.id) ok = false;
+        if (s.units.some((u) => Math.hypot(u.x - x, u.y - y) < 30)) ok = false;
+      }
+      if (ok) return { x: sx, y: sy, a };
+    }
+  }
+  return null;
+}
+
+describe('FPV drone', () => {
+  it('dives into a gun turret and destroys it, then is spent (no jeep rules, fast respawn)', () => {
+    const s = createGame({ seed: 3 });
+    const gun = s.structs.find((t) => t.kind === 'turret' && t.side === 1 && clearApproach(s, t))!;
+    const p = clearApproach(s, gun)!;
+    const d = launch(s, 'fpv');
+    expect(d.ammo).toBe(1);
+    Object.assign(d, { x: p.x, y: p.y, a: p.a, left: true });
+    const fire = () => {
+      const it = idle();
+      it[0].fire = true;
+      return it;
+    };
+    const ev = run(s, 1.2, fire);
+    expect(ev.some((e) => e.type === 'shot' && e.weapon === 'dive')).toBe(true);
+    expect(gun.alive).toBe(false);
+    expect(ev.some((e) => e.type === 'vehicleLost' && e.cause === 'expended')).toBe(true);
+    expect(s.sides[0].vehicle).toBeNull();
+    expect(s.sides[0].stock.fpv).toBe(4);
+    expect(s.sides[0].respawn).toBeLessThan(1);
+  });
+
+  it('takes three drones to bring down a tower', () => {
+    const s = createGame({ seed: 3 });
+    const tower = s.structs.find((t) => t.kind === 'tower' && t.side === 1 && clearApproach(s, t))!;
+    for (let k = 0; k < 3; k++) {
+      expect(tower.alive).toBe(true);
+      s.sides[0].respawn = 0;
+      const p = clearApproach(s, tower)!;
+      const d = launch(s, 'fpv');
+      Object.assign(d, { x: p.x, y: p.y, a: p.a, left: true });
+      run(s, 1.2, () => {
+        const it = idle();
+        it[0].fire = true;
+        return it;
+      });
+    }
+    expect(tower.alive).toBe(false);
+  });
+
+  it('can be shot down by anti-air', () => {
+    const s = createGame({ seed: 3 });
+    const aa = s.structs.find((t) => t.kind === 'aa' && t.side === 1)!;
+    const d = launch(s, 'fpv');
+    d.x = aa.x + 150;
+    d.y = aa.y;
+    d.left = true;
+    const ev = run(s, 6);
+    expect(ev.some((e) => e.type === 'shot' && e.weapon === 'aaRocket')).toBe(true);
+    expect(ev.some((e) => e.type === 'vehicleLost' && e.side === 0 && e.cause === 'destroyed')).toBe(true);
+  });
+});

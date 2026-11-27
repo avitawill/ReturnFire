@@ -7,7 +7,7 @@ test('each vehicle model on open ground', async ({ page }, info) => {
   await boot(page, '?seed=7');
   await page.click('[data-vehicle=tank]');
   await expect.poll(async () => (await vehicle(page))?.type).toBe('tank');
-  for (const t of ['tank', 'launcher', 'jeep', 'heli']) {
+  for (const t of ['tank', 'launcher', 'jeep', 'heli', 'fpv']) {
     // Swap the model in place on the open south shore of the home island.
     await game(page, `const v = g.state.sides[0].vehicle; v.type = '${t}'; v.x = 13 * 32; v.y = 36.5 * 32; v.a = -0.5; v.ta = -0.5; v.left = true; v.hp = 9999;`);
     await page.waitForTimeout(1500);

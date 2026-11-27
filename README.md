@@ -5,7 +5,7 @@ Original name, models, maps and sound. Hebrew, right-to-left UI.
 
 Each side hides its flag in one of six towers on its island. Blow towers open until the enemy flag is
 exposed, fetch it with a jeep (the only vehicle that can carry it) and bring it back to your bunker.
-Each side has a limited stock of helicopters, tanks, rocket launchers and jeeps; docking at the bunker
+Each side has a limited stock of helicopters, tanks, rocket launchers, jeeps and explosive drones; docking at the bunker
 repairs a vehicle and returns it to stock. Lose your last jeep and you lose the war.
 
 Play against the AI (easy / medium / hard), split-screen against a friend, or online by room code.
@@ -85,6 +85,7 @@ With no gamepads connected, both players share the keyboard using the split layo
 | טנק Tank | 160 | 82 | Turret aims itself. Best against structures. Sinks in water. |
 | משגר Launcher | 200 | 62 | Homing rockets (ground and air, long range) and 5 mines. Sinks in water. |
 | ג'יפ Jeep | 45 | 150 | The only flag carrier. Swims. Blocked by trees (heavier vehicles flatten them). |
+| רחפן נפץ FPV drone | 20 | 235 | Cheap (5 in stock), 45 s of battery. Fire = dive onto the target and explode: kills a gun turret or a jeep, a tower takes three. Spent when it explodes; anti-air and guns can shoot it down. |
 
 ## URL options
 

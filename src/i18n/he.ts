@@ -13,6 +13,7 @@ export const he = {
     tank: { name: 'טנק', role: 'הצריח מכוון לבד. מפרק מבצרים וחומות.' },
     launcher: { name: 'משגר', role: 'טילים מתבייתים נגד קרקע ואוויר, ומוקשים.' },
     jeep: { name: "ג'יפ", role: 'היחיד שנושא את הדגל. שוחה במים.' },
+    fpv: { name: 'רחפן נפץ', role: 'זול ומהיר. צולל על המטרה ומתפוצץ. חד-פעמי, סוללה קצרה.' },
   } satisfies Record<VehicleType, { name: string; role: string }>,
 
   hud: {
@@ -114,8 +115,8 @@ export const he = {
     stock: (n: number) => `×${n}`,
   },
 
-  lostTitle: (name: string, cause: 'destroyed' | 'drowned' | 'fuel') =>
-    cause === 'drowned' ? `ה${name} טבע` : cause === 'fuel' ? `ה${name} התרסק` : `ה${name} הושמד`,
+  lostTitle: (name: string, cause: 'destroyed' | 'drowned' | 'fuel' | 'expended') =>
+    cause === 'expended' ? `ה${name} פגע ונוצל` : cause === 'drowned' ? `ה${name} טבע` : cause === 'fuel' ? `ה${name} התרסק` : `ה${name} הושמד`,
 
   msg: {
     intro: (east: boolean) => (east ? 'האי של האויב במזרח. המבצרים שלו מסומנים באדום במפה.' : 'האי של האויב במערב. המבצרים שלו מסומנים באדום במפה.'),

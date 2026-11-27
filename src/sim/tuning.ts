@@ -5,8 +5,8 @@
 export const TILE = 32;
 export const DT = 1 / 60;
 
-export type VehicleType = 'heli' | 'tank' | 'launcher' | 'jeep';
-export const VEHICLE_TYPES: readonly VehicleType[] = ['heli', 'tank', 'launcher', 'jeep'];
+export type VehicleType = 'heli' | 'tank' | 'launcher' | 'jeep' | 'fpv';
+export const VEHICLE_TYPES: readonly VehicleType[] = ['heli', 'tank', 'launcher', 'jeep', 'fpv'];
 
 export interface VehicleSpec {
   hp: number;
@@ -18,16 +18,32 @@ export interface VehicleSpec {
   rate: number;
   radius: number;
   fly: boolean;
+  /** Cruising height above ground for flying vehicles (render and shot heights). */
+  alt: number;
 }
 
 export const VEHICLES: Record<VehicleType, VehicleSpec> = {
-  heli: { hp: 60, speed: 200, turn: 5, fuel: 70, ammo: 240, mines: 0, rate: 0.1, radius: 12, fly: true },
-  tank: { hp: 160, speed: 82, turn: 3.2, fuel: 200, ammo: 40, mines: 0, rate: 0.9, radius: 12, fly: false },
-  launcher: { hp: 200, speed: 62, turn: 2.6, fuel: 200, ammo: 20, mines: 5, rate: 1.5, radius: 12, fly: false },
-  jeep: { hp: 45, speed: 150, turn: 5.5, fuel: 150, ammo: 150, mines: 0, rate: 0.16, radius: 9, fly: false },
+  heli: { hp: 60, speed: 200, turn: 5, fuel: 70, ammo: 240, mines: 0, rate: 0.1, radius: 12, fly: true, alt: 60 },
+  tank: { hp: 160, speed: 82, turn: 3.2, fuel: 200, ammo: 40, mines: 0, rate: 0.9, radius: 12, fly: false, alt: 0 },
+  launcher: { hp: 200, speed: 62, turn: 2.6, fuel: 200, ammo: 20, mines: 5, rate: 1.5, radius: 12, fly: false, alt: 0 },
+  jeep: { hp: 45, speed: 150, turn: 5.5, fuel: 150, ammo: 150, mines: 0, rate: 0.16, radius: 9, fly: false, alt: 0 },
+  // Explosive FPV drone: fast, fragile, short battery; its one "shot" is a dive onto the target.
+  fpv: { hp: 20, speed: 235, turn: 6, fuel: 45, ammo: 1, mines: 0, rate: 0, radius: 8, fly: true, alt: 36 },
 };
 
-export const STOCK: Record<VehicleType, number> = { heli: 2, tank: 3, launcher: 2, jeep: 3 };
+export const STOCK: Record<VehicleType, number> = { heli: 2, tank: 3, launcher: 2, jeep: 3, fpv: 5 };
+
+export const FPV = {
+  /** Dive: speed, how long until it hits the ground, steering while diving (fraction of normal turn). */
+  diveSpeed: 330,
+  diveTime: 0.75,
+  diveTurn: 0.5,
+  /** Blast. Kills a gun turret or a jeep; a tower takes three. */
+  dmg: 110,
+  blast: 46,
+  /** Seconds before a new vehicle may be chosen after the drone is spent. */
+  respawn: 0.6,
+} as const;
 
 export const PLAYER = {
   /** Input magnitude below this is treated as no input. */

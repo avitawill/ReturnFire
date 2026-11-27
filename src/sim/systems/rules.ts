@@ -3,7 +3,8 @@
 import { Tile, otherSide, type EndReason, type Intent, type Side, type Vehicle } from '../entities';
 import type { Ctx } from '../events';
 import { dist } from '../math';
-import { DEFENCE, FLAG_CARRIERS, PLAYER, VEHICLES } from '../tuning';
+import { DEFENCE, FLAG_CARRIERS, FPV, PLAYER, VEHICLES } from '../tuning';
+import type { LossCause } from '../events';
 import { tileAt } from '../world';
 
 export function endGame(c: Ctx, winner: Side, reason: EndReason) {
@@ -26,20 +27,21 @@ export function trySpawn(c: Ctx, side: Side, intent: Intent) {
     hp: spec.hp, fuel: spec.fuel, ammo: spec.ammo, mines: spec.mines, cool: 0,
     carrying: false, left: false, wet: false, sink: 0, fuelWarned: false, steer: 0, throttle: 0,
     prevSecondary: intent.secondary,
+    dive: 0,
   };
   sd.vehicle = v;
   c.ev.push({ type: 'vehicleSpawned', side, vehicle: type, id: v.id });
 }
 
 /** Removes the side's vehicle from play (destroyed, drowned, crashed). */
-export function loseVehicle(c: Ctx, side: Side, cause: 'destroyed' | 'drowned' | 'fuel') {
+export function loseVehicle(c: Ctx, side: Side, cause: LossCause) {
   const s = c.s;
   const sd = s.sides[side];
   const v = sd.vehicle;
   if (!v) return;
   v.hp = Math.min(v.hp, 0);
   sd.vehicle = null;
-  sd.respawn = cause === 'drowned' ? PLAYER.respawnDelay * 0.5 : PLAYER.respawnDelay;
+  sd.respawn = cause === 'drowned' ? PLAYER.respawnDelay * 0.5 : cause === 'expended' ? FPV.respawn : PLAYER.respawnDelay;
   sd.vehiclesLost++;
   c.ev.push({ type: 'vehicleLost', side, vehicle: v.type, cause, x: v.x, y: v.y, a: v.a, ta: v.ta });
   if (v.carrying) {

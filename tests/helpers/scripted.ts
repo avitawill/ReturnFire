@@ -47,7 +47,12 @@ function decide(s: GameState, side: Side, mem: ScriptMemory): Intent {
       else if (hunter) order = ev!.type === 'heli' ? ['launcher'] : ['launcher', 'tank'];
       else if (enemyNear(s, side, foeFlag.x, foeFlag.y, 700) && combat && s.time % 30 < 25) return it;
       else order = ['jeep'];
-    } else order = ['launcher', 'tank', 'heli', 'jeep'];
+    } else {
+      // Drones first while guns still cover the flag tower: cheap, and they save the armour.
+      const t = s.structs[foeFlag.towerId - 1];
+      const covered = !!nearestDefence(s, side, t.x, t.y, 330, t.x, t.y);
+      order = covered ? ['fpv', 'launcher', 'tank', 'heli', 'jeep'] : ['launcher', 'tank', 'heli', 'fpv', 'jeep'];
+    }
     it.select = order.find((t) => sd.stock[t] > 0) ?? null;
     return it;
   }
@@ -65,6 +70,20 @@ function decide(s: GameState, side: Side, mem: ScriptMemory): Intent {
     if (v.carrying || foeFlag.state !== 'ground') it.move = home();
     else it.move = steerTo(s, v, mem.nav, foeFlag.x, foeFlag.y, 4);
     it.fire = !!threat;
+    return it;
+  }
+  if (v.type === 'fpv') {
+    // Fly at the nearest gun covering the flag (or the tower), dive from close range.
+    const fx = foeFlag.state === 'hidden' ? s.structs[foeFlag.towerId - 1].x : foeFlag.x;
+    const fy = foeFlag.state === 'hidden' ? s.structs[foeFlag.towerId - 1].y : foeFlag.y;
+    const g = nearestDefence(s, side, fx, fy, 330, v.x, v.y) ?? { x: fx, y: fy };
+    const dx = g.x - v.x;
+    const dy = g.y - v.y;
+    const m = Math.hypot(dx, dy) || 1;
+    it.move = { x: dx / m, y: dy / m };
+    const off = Math.abs(((Math.atan2(dy, dx) - v.a + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    it.fire = m < 140 && off < 0.2;
+    if (v.fuel < 8) it.move = home();
     return it;
   }
   // Hunt the enemy's vehicle while our flag-runner would be exposed to it.

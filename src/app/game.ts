@@ -85,6 +85,8 @@ export class Game {
   private begun = false;
   private deadT: Record<Side, number> = { 0: 0, 1: 0 };
   private skullT: Record<Side, number | null> = { 0: null, 1: null };
+  /** The last vehicle was a drone spent on purpose: no skull for that. */
+  private spent: Record<Side, boolean> = { 0: false, 1: false };
   private winFx = 0;
   private reducedMotion: boolean;
   private seed = 1;
@@ -300,6 +302,7 @@ export class Game {
     this.begun = false;
     this.deadT = { 0: 0, 1: 0 };
     this.skullT = { 0: null, 1: null };
+    this.spent = { 0: false, 1: false };
     this.winFx = 0;
     this.paused = false;
     this.phase = 'play';
@@ -602,6 +605,7 @@ export class Game {
   private onEvents(events: readonly SimEvent[]) {
     for (const e of events) {
       for (const l of this.layers) l.onEvent(e, this.state);
+      if (e.type === 'vehicleLost') this.spent[e.side] = e.cause === 'expended';
       if (e.type === 'vehicleSpawned') {
         this.begun = true;
         this.inputOf(e.side)?.clearSelect();
@@ -633,6 +637,13 @@ export class Game {
         continue;
       }
       this.deadT[l.side] += dt;
+      if (this.spent[l.side]) {
+        if (this.deadT[l.side] > 1.2 && sd.respawn <= 0) {
+          this.spent[l.side] = false;
+          l.openBay('lost', this.state);
+        }
+        continue;
+      }
       const sk = this.skullT[l.side];
       if (sk === null) {
         if (this.deadT[l.side] > 1.5) {

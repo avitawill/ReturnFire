@@ -252,7 +252,7 @@ export class AudioEngine {
             if (this.gunBudget < 1) break;
             this.gunBudget--;
             this.sfx('gun', this.at(e.x, e.y));
-          } else this.sfx(e.weapon === 'shell' ? 'shell' : 'rocket', this.at(e.x, e.y));
+          } else this.sfx(e.weapon === 'shell' ? 'shell' : e.weapon === 'dive' ? 'dive' : 'rocket', this.at(e.x, e.y));
           break;
         case 'explosion':
           if (!e.quiet && e.size >= 0.8) this.sfx(e.size >= 1.5 ? 'bigBoom' : 'boom', this.at(e.x, e.y));

@@ -43,6 +43,8 @@ export interface Vehicle {
   steer: number;
   throttle: number;
   prevSecondary: boolean;
+  /** Seconds into an FPV dive, 0 when not diving. */
+  dive: number;
 }
 
 export type UnitKind = 'ptank' | 'drone';

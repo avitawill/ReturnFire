@@ -208,6 +208,34 @@ function drone(p: Palette): PartDef[] {
   ];
 }
 
+/** FPV strike drone: an X-frame quadcopter carrying a warhead under its nose. */
+function fpv(p: Palette): PartDef[] {
+  const h = new ModelBuilder();
+  h.box(9, 3, 6, p.b, 0, 0, 0);
+  h.box(5, 1.5, 4.6, p.l, -1, 2, 0);
+  // Camera pod and antenna.
+  h.box(2.4, 2.2, 2.4, OPENING, 5, 1, 0);
+  h.cyl(0.25, 0.25, 6, 4, RUBBER, -4, 4, 0, 'y', { rz: 0.5 });
+  // Warhead slung underneath, pointing forward.
+  h.cyl(1.6, 1.6, 9, 10, '#5d6b45', 2, -2.6, 0, 'x');
+  h.cone(1.6, 3, 10, '#c9442f', 8, -2.6, 0, { rz: -Math.PI / 2 });
+  for (let k = 0; k < 4; k++) {
+    const a = Math.PI / 4 + (k * Math.PI) / 2;
+    h.box(9, 0.9, 1.2, p.d, Math.cos(a) * 4.5, 0.6, Math.sin(a) * 4.5, { ry: -a });
+    h.cyl(1.4, 1.4, 1.8, 8, METAL, Math.cos(a) * 8.5, 1.2, Math.sin(a) * 8.5);
+  }
+  const rotor = new ModelBuilder();
+  for (let k = 0; k < 4; k++) {
+    const a = Math.PI / 4 + (k * Math.PI) / 2;
+    rotor.box(7, 0.25, 0.9, RUBBER, Math.cos(a) * 8.5, 0, Math.sin(a) * 8.5, { ry: -a + 0.7 });
+    rotor.box(7, 0.25, 0.9, RUBBER, Math.cos(a) * 8.5, 0, Math.sin(a) * 8.5, { ry: -a - 0.9 });
+  }
+  return [
+    { name: 'hull', geo: h.build(), material: 'satin' },
+    { name: 'rotor', geo: rotor.build(), material: 'matte', at: [0, 2.4, 0] },
+  ];
+}
+
 // ---------------------------------------------------------------- structures
 
 /** Square frustum (pyramid stump) via a 4-sided cylinder turned 45 degrees. */
@@ -353,6 +381,7 @@ export function allModels(): ModelDef[] {
   for (const v of ['0', '1'] as const) {
     const p = PALETTES[v];
     out.push({ id: `drone.${v}`, parts: drone(p) });
+    out.push({ id: `fpv.${v}`, parts: fpv(p) });
     out.push({ id: `tower.${v}`, parts: tower(p) });
     out.push({ id: `bunker.${v}`, parts: bunker(p, v) });
     out.push({ id: `turret.${v}`, parts: turret(p, false) });

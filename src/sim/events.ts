@@ -3,14 +3,14 @@ import type { VehicleType } from './tuning';
 
 /** Discrete things that happened during a step. Render and audio subscribe to these. */
 export type SimEvent =
-  | { type: 'shot'; side: Side; weapon: 'gun' | 'shell' | 'rocket' | 'aaRocket'; x: number; y: number; h: number; a: number; byVehicle: boolean }
+  | { type: 'shot'; side: Side; weapon: 'gun' | 'shell' | 'rocket' | 'aaRocket' | 'dive'; x: number; y: number; h: number; a: number; byVehicle: boolean }
   | { type: 'explosion'; x: number; y: number; h: number; size: number; quiet: boolean }
   | { type: 'structureDamaged'; id: number; hp: number; max: number }
   | { type: 'structureDestroyed'; id: number; kind: StructKind; side: Side; x: number; y: number }
   | { type: 'treeCrushed'; tile: number; x: number; y: number }
   | { type: 'vehicleSpawned'; side: Side; vehicle: VehicleType; id: number }
   | { type: 'vehicleDocked'; side: Side; vehicle: VehicleType }
-  | { type: 'vehicleLost'; side: Side; vehicle: VehicleType; cause: 'destroyed' | 'drowned' | 'fuel'; x: number; y: number; a: number; ta: number }
+  | { type: 'vehicleLost'; side: Side; vehicle: VehicleType; cause: LossCause; x: number; y: number; a: number; ta: number }
   | { type: 'vehicleHit'; side: Side; hp: number }
   | { type: 'sinking'; side: Side; vehicle: VehicleType }
   | { type: 'fuelLow'; side: Side }
@@ -25,6 +25,9 @@ export type SimEvent =
   | { type: 'gameOver'; winner: Side; reason: EndReason };
 
 export type SimEventType = SimEvent['type'];
+
+/** 'expended': a drone that blew itself up on purpose. */
+export type LossCause = 'destroyed' | 'drowned' | 'fuel' | 'expended';
 
 /** Per-step context handed to every system. */
 export interface Ctx {

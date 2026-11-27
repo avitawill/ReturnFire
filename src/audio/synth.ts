@@ -3,7 +3,7 @@
 
 import type { VehicleType } from '../sim/tuning';
 
-export type Sfx = 'gun' | 'shell' | 'rocket' | 'boom' | 'bigBoom' | 'splash' | 'mine' | 'clank' | 'crunch' | 'pickup' | 'dock' | 'alarm' | 'rumble';
+export type Sfx = 'dive' | 'gun' | 'shell' | 'rocket' | 'boom' | 'bigBoom' | 'splash' | 'mine' | 'clank' | 'crunch' | 'pickup' | 'dock' | 'alarm' | 'rumble';
 
 export function noiseBuffer(ac: BaseAudioContext, seconds = 1): AudioBuffer {
   const n = Math.floor(ac.sampleRate * seconds);
@@ -48,6 +48,13 @@ export function playSfx(ac: AudioContext, out: AudioNode, noise: AudioBuffer, k:
     o.stop(t + dur + 0.02);
   };
   switch (k) {
+    case 'dive': {
+      // Rising propeller scream as the drone goes in.
+      env(g, t, 0.3 * vol, 0.05, 0.75);
+      osc('sawtooth', 380, 1500, 0.75);
+      noiseSrc('bandpass', 1200, 4000, 0.75, 2);
+      break;
+    }
     case 'gun':
       env(g, t, 0.18 * vol, 0.002, 0.07);
       noiseSrc('bandpass', 2400, 900, 0.08, 1.2);
@@ -163,6 +170,16 @@ export const TUNES: Record<VehicleType, Tune> = {
   launcher: { u: 0.22, acc: 0.92, min: 0.085, w: 'square', voices: ['B2 C#3 D3 E3 F#3 D3 F#3:2 F3 C#3 F3:2 E3 C3 E3:2 B2 C#3 D3 E3 F#3 D3 F#3 B3 A3 F#3 D3 F#3 A3:4'] },
   jeep: { u: 0.075, w: 'sawtooth', voices: [(BEE + BEE + BEE2 + BEE2).trim()] },
   tank: { u: 0.13, w: 'sawtooth', voices: ['G2 G2 G2 G2:3 G2:3 G2:1.5 G2:1.5 G2:3', 'G3:30 D4:30 C#4:30'] },
+  // Rossini, William Tell Overture: the finale gallop (public domain).
+  fpv: {
+    u: 0.11,
+    w: 'square',
+    voices: [
+      'E4:.5 E4:.5 E4 E4:.5 E4:.5 E4 E4:.5 E4:.5 A4 B4 C#5 E4:.5 E4:.5 E4 E4:.5 A4:.5 C#5 B4 G#4 E4 ' +
+        'E4:.5 E4:.5 E4 E4:.5 E4:.5 E4 E4:.5 E4:.5 A4 B4 C#5 A4:.5 C#5:.5 E5 D5 C#5 B4 A4:2',
+      'A2 E3 A2 E3 A2 E3 A2 E3 E2 B2 E2 B2 E2 B2 E2 B2 A2 E3 A2 E3 A2 E3 A2 E3 E2 B2 A2 E3 A2:2',
+    ],
+  },
 };
 
 /** A scheduler that plays a synthesised tune into `out` until stopped. */

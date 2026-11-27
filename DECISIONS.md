@@ -265,3 +265,24 @@ WebSocket implementation) pairs two players by a four-letter code and forwards m
 any home router, unlike direct WebRTC, at the cost of one free hosting account (Render blueprint in
 `render.yaml`). Online games do not pause (the pause menu stays available) and end when either player
 leaves.
+
+## The FPV drone (רחפן נפץ)
+
+A fifth vehicle, the modern addition. Five in stock, 20 armour, fast (235), 45 s of battery, flies low
+(36 above ground). Firing starts a dive: 0.75 s at 330 px/s with half steering, detonating on the first
+enemy structure, unit or vehicle it touches, or on the ground at the end. The blast does 110 damage
+within 46 px: a gun turret (70) or jeep (45) dies, a tank survives badly hurt, a tower (260) takes three
+drones. A drone that detonates is "expended": it is gone from stock, there is no laughing skull, and the
+bay reopens after a second. Like the helicopter it can be shot by anti-air, turrets and homing rockets.
+If it docks unused it returns to stock. Its theme is the gallop from Rossini's *William Tell* overture
+(public domain, synthesised).
+
+The AI uses drones to intercept a jeep carrying its flag (the fastest answer) and, now and then, to knock
+out a gun covering its next target. The drone's dive is steered with the same difficulty-dependent aim
+error as every other weapon. Drones made easy AI stronger: over 30 seeds the scripted test player now
+beats it 21 times (70 %, was 83 %); the required test (seeds 1–10) still passes. The scripted player
+was taught to use its own drones on covering guns, as a competent player would.
+
+Two AI fixes came out of this: on a routine replan the AI keeps its current route unless the new one
+is clearly shorter (equal routes round an island made a tank turn back and forth on the spot), and the
+AI never fires a drone "opportunistically" on the way, only on purpose.

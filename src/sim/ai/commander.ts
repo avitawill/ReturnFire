@@ -38,6 +38,7 @@ const ENGAGE: Record<VehicleType, { hold: number; reach: number }> = {
   launcher: { hold: 225, reach: 400 },
   heli: { hold: 160, reach: 245 },
   jeep: { hold: 125, reach: 180 },
+  fpv: { hold: 150, reach: 200 },
 };
 
 export interface AiDebug {
@@ -137,13 +138,21 @@ export class AiCommander {
     const has = (t: VehicleType) => st[t] > 0;
     const pick = (...ts: VehicleType[]) => ts.find(has) ?? null;
     const flag = this.foeFlag(s);
-    if (this.mustDefend(s)) return pick('heli', 'launcher', 'tank', 'jeep');
+    if (this.mustDefend(s)) {
+      // A jeep running off with our flag: the drone is the fastest thing that can stop it.
+      const ev = this.enemyVehicle(s);
+      if (ev?.carrying && has('fpv')) return 'fpv';
+      return pick('heli', 'launcher', 'tank', 'fpv', 'jeep');
+    }
     if (flag && flag.state === 'ground') {
       if (this.threatNear(s, flag.x, flag.y, false, 230) >= 1 && (has('tank') || has('launcher') || has('heli'))) return pick('launcher', 'tank', 'heli');
       return pick('jeep');
     }
     // Searching: breach with armour; helicopters go for lightly defended towers.
     const keepJeep = st.jeep <= 1;
+    // Clear a gun covering the next target with a cheap drone strike now and then.
+    const next = this.cheapestTower(s, false) ?? this.cheapestTower(s, true);
+    if (next && st.fpv >= 2 && this.coveringGunOf(s, next.st.x, next.st.y) && this.rngInt(3) === 0) return 'fpv';
     const attackers: VehicleType[] = ['tank', 'launcher', 'heli'];
     const avail = attackers.filter(has);
     // Towers that no tank can reach (islets without a bridge) are for the helicopter, or a swimming jeep.
@@ -250,7 +259,7 @@ export class AiCommander {
     }
     const fuelNeed = (home / (spec.speed * (spec.fly ? 1 : 0.8))) * 1.5 + 6;
     const lowFuel = v.fuel < fuelNeed && (spec.fly || v.fuel < spec.fuel * 0.15);
-    if (v.hp < spec.hp * 0.3 || lowFuel || (v.ammo <= 0 && v.type !== 'jeep')) {
+    if (v.hp < spec.hp * 0.3 || lowFuel || (v.ammo <= 0 && v.type !== 'jeep' && v.type !== 'fpv')) {
       this.mode = 'home';
       return;
     }
@@ -320,8 +329,17 @@ export class AiCommander {
     return best;
   }
 
+  /** Where the last engagement was aimed (the drone keeps steering at it while diving). */
+  private aimAt = { x: 0, y: 0 };
+
   /** Tactical execution of the current mode. */
   private act(s: GameState, v: Vehicle, it: Intent) {
+    if (v.type === 'fpv' && v.dive > 0) {
+      // Committed: steer the dive at the target, with this difficulty's aim error.
+      const a = Math.atan2(this.aimAt.y - v.y, this.aimAt.x - v.x) + this.aimErr * 1.5;
+      it.move = { x: Math.cos(a), y: Math.sin(a) };
+      return;
+    }
     const sd = s.sides[this.side];
     const goHome = () => {
       if (!v.left) {
@@ -366,6 +384,12 @@ export class AiCommander {
           this.thinkT = 0;
           return goHome();
         }
+        if (v.type === 'fpv') {
+          // Dive onto the gun or anti-air site covering the target; failing that, the tower itself.
+          const g = this.coveringGunOf(s, t.x, t.y, v);
+          const tgt = g ?? t;
+          return this.engage(s, v, it, tgt.x, tgt.y, false, false);
+        }
         // Helicopters take out anti-air on the way; others let the guns sort themselves out.
         if (v.type === 'heli') {
           const aa = this.nearestOf(s, v, 'aa', 330);
@@ -396,6 +420,23 @@ export class AiCommander {
         return;
       }
     }
+  }
+
+  /** Enemy gun or AA site within 330 of (x, y), nearest to `from` (or to (x, y)). */
+  private coveringGunOf(s: GameState, x: number, y: number, from?: { x: number; y: number }): Structure | null {
+    const foe = otherSide(this.side);
+    const o = from ?? { x, y };
+    let best: Structure | null = null;
+    let bd = Infinity;
+    for (const st of s.structs) {
+      if (!st.alive || st.side !== foe || (st.kind !== 'turret' && st.kind !== 'aa') || dist(st.x, st.y, x, y) > 330) continue;
+      const d = dist(st.x, st.y, o.x, o.y);
+      if (d < bd) {
+        bd = d;
+        best = st;
+      }
+    }
+    return best;
   }
 
   /** Enemy gun or AA site within 330 of (x, y), nearest to the vehicle. */
@@ -436,6 +477,7 @@ export class AiCommander {
   private engage(s: GameState, v: Vehicle, it: Intent, tx: number, ty: number, targetFlies: boolean, chase: boolean) {
     const env = ENGAGE[v.type];
     const d = dist(v.x, v.y, tx, ty);
+    this.aimAt = { x: tx, y: ty };
     const canHit = !(targetFlies && v.type === 'tank');
     const want = Math.atan2(ty - v.y, tx - v.x) + this.aimErr;
     const err = Math.abs(adiff(want, v.a));
@@ -463,7 +505,8 @@ export class AiCommander {
 
   /** Fire at whatever the weapon can reach on the move. */
   private opportunistic(s: GameState, v: Vehicle): boolean {
-    if (v.ammo <= 0) return false;
+    // The drone only dives on purpose (see engage).
+    if (v.ammo <= 0 || v.type === 'fpv') return false;
     if (v.type === 'tank') {
       const foe = otherSide(this.side);
       for (const st of s.structs) if (st.alive && st.side === foe && (st.kind === 'turret' || st.kind === 'aa') && dist(st.x, st.y, v.x, v.y) < PLAYER.tankAimRange) return true;

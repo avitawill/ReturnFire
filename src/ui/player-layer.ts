@@ -47,7 +47,7 @@ export class PlayerLayer {
   private cb: LayerCallbacks;
   mode: BayMode | null = null;
   /** Name of the last lost vehicle and how, for the "lost" bay. */
-  lost: { type: VehicleType; cause: 'destroyed' | 'drowned' | 'fuel' } | null = null;
+  lost: { type: VehicleType; cause: 'destroyed' | 'drowned' | 'fuel' | 'expended' } | null = null;
 
   constructor(parent: HTMLElement, side: Side, cb: LayerCallbacks, players: 1 | 2 = 1) {
     this.side = side;

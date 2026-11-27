@@ -4,7 +4,7 @@ import { Tile, otherSide, type GameState, type Projectile, type Side, type Struc
 import type { Ctx } from '../events';
 import { adiff, clamp, dist, turnToward } from '../math';
 import { rand } from '../rng';
-import { DEFENCE, HEIGHT, PLAYER, PROJECTILE, TILE, VEHICLES } from '../tuning';
+import { DEFENCE, FPV, HEIGHT, PLAYER, PROJECTILE, TILE, VEHICLES } from '../tuning';
 import { structAt, tileAt } from '../world';
 import { loseVehicle } from './rules';
 
@@ -18,7 +18,13 @@ export type Target =
   | { k: 'struct'; e: Structure };
 
 export const isFlying = (v: Vehicle) => VEHICLES[v.type].fly;
-export const vehicleHeight = (v: Vehicle) => (isFlying(v) ? G + FH : G + 10);
+export const vehicleHeight = (v: Vehicle) => {
+  const spec = VEHICLES[v.type];
+  if (!spec.fly) return G + 10;
+  // A diving drone drops from cruising height to the ground.
+  const k = v.dive > 0 ? Math.max(0, 1 - v.dive / FPV.diveTime) : 1;
+  return G + spec.alt * k;
+};
 
 export function findEntity(s: GameState, id: number): Target | null {
   for (const sd of s.sides) if (sd.vehicle && sd.vehicle.id === id) return { k: 'vehicle', e: sd.vehicle };
@@ -144,6 +150,16 @@ export function vehicleWeapons(c: Ctx, v: Vehicle, fire: boolean, secondary: boo
     v.ta = turnToward(v.ta, want, PLAYER.tankTurretTurn * dt);
   } else v.ta = v.a;
   v.cool -= dt;
+  if (v.type === 'fpv') {
+    // The drone's only weapon is itself.
+    if (fire && v.dive === 0 && v.ammo > 0) {
+      v.ammo--;
+      v.dive = 1e-6;
+      c.ev.push({ type: 'shot', side: v.side, weapon: 'dive', x: v.x, y: v.y, h: vehicleHeight(v), a: v.a, byVehicle: true });
+    }
+    v.prevSecondary = secondary;
+    return;
+  }
   if (fire && v.cool <= 0 && v.ammo > 0) {
     v.cool = VEHICLES[v.type].rate;
     v.ammo--;
@@ -369,3 +385,34 @@ export function updateMines(c: Ctx) {
 }
 
 export const onWater = (s: GameState, x: number, y: number) => tileAt(s.world, x, y) === Tile.Water;
+
+/** Detonates a diving drone: heavy damage to everything hostile in the blast, then the drone is spent. */
+export function detonate(c: Ctx, v: Vehicle) {
+  const s = c.s;
+  const foe = otherSide(v.side);
+  const R = FPV.blast;
+  for (const st of s.structs) {
+    if (!st.alive || st.side !== foe) continue;
+    // Distance from the blast to the nearest point of the structure's footprint.
+    const x0 = st.tx * TILE;
+    const y0 = st.ty * TILE;
+    const nx = Math.max(x0, Math.min(v.x, x0 + st.w * TILE));
+    const ny = Math.max(y0, Math.min(v.y, y0 + st.h * TILE));
+    if (dist(nx, ny, v.x, v.y) < R * 0.6) damageStruct(c, st, FPV.dmg);
+  }
+  for (const u of s.units) if (u.side === foe && u.hp > 0 && dist(u.x, u.y, v.x, v.y) < R) damageUnit(c, u, FPV.dmg);
+  const ev = s.sides[foe].vehicle;
+  if (ev && ev.sink === 0 && dist(ev.x, ev.y, v.x, v.y) < R + VEHICLES[ev.type].radius) damageVehicle(c, ev, FPV.dmg);
+  explode(c, v.x, v.y, 1.5, vehicleHeight(v));
+  loseVehicle(c, v.side, 'expended');
+}
+
+/** True if the diving drone has flown into something hostile. */
+export function diveContact(s: GameState, v: Vehicle): boolean {
+  const foe = otherSide(v.side);
+  const st = structAt(s, v.x, v.y);
+  if (st && st.alive && st.side === foe) return true;
+  for (const u of s.units) if (u.side === foe && u.hp > 0 && dist(u.x, u.y, v.x, v.y) < 18) return true;
+  const ev = s.sides[foe].vehicle;
+  return !!ev && ev.sink === 0 && dist(ev.x, ev.y, v.x, v.y) < VEHICLES[ev.type].radius + 10;
+}

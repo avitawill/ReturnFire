@@ -56,13 +56,19 @@ export function steerTo(s: GameState, v: Vehicle, nav: NavMemory, gx: number, gy
       p = findPath(s.world, v.x, v.y, gx, gy, mover, { breach, extra });
       nav.breaching = !!p;
     }
+    // A routine replan keeps the current route unless the new one is clearly shorter;
+    // otherwise two equal routes (round an island either way) make the vehicle dither.
+    const remaining = nav.path.length - nav.idx;
+    const keep = !goalMoved && nav.mover === mover && !nav.failed && p && remaining > 0 && p.length >= remaining - 3;
     nav.goalX = gx;
     nav.goalY = gy;
     nav.mover = mover;
     nav.at = s.tick;
-    nav.failed = !p;
-    nav.path = p ?? [];
-    nav.idx = 0;
+    if (!keep) {
+      nav.failed = !p;
+      nav.path = p ?? [];
+      nav.idx = 0;
+    }
   }
   const W = s.world.W;
   nav.blocker = -1;

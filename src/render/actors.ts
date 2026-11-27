@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { Tile, type GameState, type Side, type Vehicle } from '../sim/entities';
 import type { SimEvent } from '../sim/events';
-import { HEIGHT, TILE, VEHICLES, VEHICLE_TYPES, type VehicleType } from '../sim/tuning';
+import { FPV, HEIGHT, TILE, VEHICLES, VEHICLE_TYPES, type VehicleType } from '../sim/tuning';
 import { flagModel, vehicleModel, type VehicleModel } from './models';
 import type { Terrain } from './terrain';
 
@@ -92,7 +92,12 @@ export class ActorView {
 
   /** Ground height under a vehicle, matching how it floats or sinks. */
   vehicleY(v: Vehicle): number {
-    if (VEHICLES[v.type].fly) return G + FH;
+    const spec = VEHICLES[v.type];
+    if (spec.fly) {
+      // A diving drone drops to the ground over the dive; the helicopter cruises higher.
+      const k = v.dive > 0 ? Math.max(0, 1 - v.dive / FPV.diveTime) : 1;
+      return G + spec.alt * k;
+    }
     if (v.sink > 0) return -2 - v.sink * 16;
     if (v.wet) return -3;
     return Math.max(1, this.terrain.heightAt(v.x, v.y));
@@ -115,7 +120,7 @@ export class ActorView {
       m.root.rotation.y = -v.a;
       if (fly) {
         m.root.rotation.x = pose.bank * 0.5;
-        m.root.rotation.z = -pose.pitch * 0.2;
+        m.root.rotation.z = v.dive > 0 ? -0.7 : -pose.pitch * 0.2;
       } else if (v.sink > 0) {
         m.root.rotation.x = 0;
         m.root.rotation.z = v.sink * 0.35;
