@@ -54,6 +54,14 @@ export function serialize(state: GameState): string {
   return JSON.stringify(state, (_k, v) => (ArrayBuffer.isView(v) ? Array.from(v as Uint8Array) : v));
 }
 
+/** Rebuilds a state from `serialize` output (typed arrays restored). */
+export function deserialize(json: string): GameState {
+  const s = JSON.parse(json) as GameState;
+  s.world.tiles = Uint8Array.from(s.world.tiles as unknown as number[]);
+  s.world.block = Int16Array.from(s.world.block as unknown as number[]);
+  return s;
+}
+
 /** FNV-1a hash of the serialised state; cheap equality check for determinism tests. */
 export function hashState(state: GameState): string {
   const str = serialize(state);

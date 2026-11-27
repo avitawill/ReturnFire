@@ -23,6 +23,10 @@ export interface ScreenCallbacks {
   resume(): void;
   quit(): void;
   install(): void;
+  openOnline(): void;
+  onlineCreate(relay: string): void;
+  onlineJoin(code: string, relay: string): void;
+  onlineCancel(): void;
 }
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => {
@@ -60,6 +64,12 @@ export class Screens {
   private main: HTMLDivElement;
   private settings: HTMLDivElement;
   private pause: HTMLDivElement;
+  private online!: HTMLDivElement;
+  private onlineStatus!: HTMLParagraphElement;
+  private onlineCode!: HTMLParagraphElement;
+  private codeInput!: HTMLInputElement;
+  private relayInput!: HTMLInputElement;
+  private pauseHint!: HTMLParagraphElement;
   private mapSeg: ReturnType<typeof segmented>;
   private diffSeg: ReturnType<typeof segmented>;
   private qualSeg: ReturnType<typeof segmented>;
@@ -92,7 +102,11 @@ export class Screens {
     two.type = 'button';
     two.dataset.action = 'two';
     two.addEventListener('click', () => cb.start(2));
-    actions.append(single, two);
+    const onlineBtn = el('button', 'primary alt', he.online.button);
+    onlineBtn.type = 'button';
+    onlineBtn.dataset.action = 'online';
+    onlineBtn.addEventListener('click', () => cb.openOnline());
+    actions.append(single, two, onlineBtn);
     this.mapSeg = segmented(he.main.map, Object.fromEntries([...MAP_NAMES, 'random'].map((m) => [m, he.main.maps[m]])), (m) => cb.setMap(m));
     this.seedLine = el('p', 'note');
     this.reroll = el('button', 'ghost', he.main.reroll);
@@ -177,10 +191,49 @@ export class Screens {
     quit.addEventListener('click', () => cb.quit());
     const pa = el('div', 'actions');
     pa.append(resume, pset, quit);
-    ps.append(el('h1', '', he.pause.title), el('p', 'small', he.pause.hint), pa);
+    this.pauseHint = el('p', 'small', he.pause.hint);
+    ps.append(el('h1', '', he.pause.title), this.pauseHint, pa);
     this.pause.append(ps);
 
-    this.root.append(this.main, this.settings, this.pause);
+    // Online: create a room and share its code, or type a friend's code.
+    this.online = el('div', 'menu screen online');
+    const os = el('div', 'sheet');
+    const createBtn = el('button', 'primary', he.online.create);
+    createBtn.type = 'button';
+    createBtn.dataset.action = 'create';
+    createBtn.addEventListener('click', () => cb.onlineCreate(this.relayInput.value.trim()));
+    this.onlineCode = el('p', 'room-code');
+    this.onlineCode.hidden = true;
+    const joinRow = el('div', 'actions');
+    this.codeInput = el('input', 'code-input');
+    this.codeInput.maxLength = 4;
+    this.codeInput.placeholder = 'ABCD';
+    this.codeInput.setAttribute('aria-label', he.online.codeLabel);
+    this.codeInput.autocapitalize = 'characters';
+    this.codeInput.spellcheck = false;
+    this.codeInput.dir = 'ltr';
+    this.codeInput.addEventListener('input', () => (this.codeInput.value = this.codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '')));
+    const joinBtn = el('button', 'primary alt', he.online.join);
+    joinBtn.type = 'button';
+    joinBtn.dataset.action = 'join';
+    joinBtn.addEventListener('click', () => cb.onlineJoin(this.codeInput.value, this.relayInput.value.trim()));
+    this.codeInput.addEventListener('keydown', (e) => e.key === 'Enter' && joinBtn.click());
+    joinRow.append(this.codeInput, joinBtn);
+    this.onlineStatus = el('p', 'note');
+    this.onlineStatus.setAttribute('role', 'status');
+    const adv = el('details', 'adv');
+    const sum = el('summary', '', he.online.server);
+    this.relayInput = el('input', 'relay-input');
+    this.relayInput.dir = 'ltr';
+    this.relayInput.spellcheck = false;
+    adv.append(sum, this.relayInput);
+    const oback = el('button', 'ghost', he.online.back);
+    oback.type = 'button';
+    oback.addEventListener('click', () => cb.onlineCancel());
+    os.append(el('h1', '', he.online.title), el('p', '', he.online.body), createBtn, this.onlineCode, el('p', 'label', he.online.codeLabel), joinRow, this.onlineStatus, adv, oback);
+    this.online.append(os);
+
+    this.root.append(this.main, this.settings, this.pause, this.online);
     this.hideAll();
   }
 
@@ -194,9 +247,28 @@ export class Screens {
     this.main.hidden = true;
     this.settings.hidden = true;
     this.pause.hidden = true;
+    if (this.online) this.online.hidden = true;
   }
 
-  get open(): 'main' | 'settings' | 'pause' | null {
+  showOnline(relay: string) {
+    this.hideAll();
+    this.online.hidden = false;
+    this.relayInput.value = relay;
+    this.onlineCode.hidden = true;
+    this.onlineStatus.textContent = '';
+    (this.online.querySelector('[data-action=create]') as HTMLButtonElement).focus({ preventScroll: true });
+  }
+
+  setOnlineStatus(text: string, code?: string) {
+    this.onlineStatus.textContent = text;
+    if (code !== undefined) {
+      this.onlineCode.hidden = !code;
+      this.onlineCode.textContent = code ? `${he.online.yourCode} ${code}` : '';
+    }
+  }
+
+  get open(): 'main' | 'settings' | 'pause' | 'online' | null {
+    if (!this.online.hidden) return 'online';
     if (!this.main.hidden) return 'main';
     if (!this.settings.hidden) return 'settings';
     if (!this.pause.hidden) return 'pause';
@@ -235,7 +307,8 @@ export class Screens {
     this.qualSeg.set(q);
   }
 
-  showPause() {
+  showPause(online = false) {
+    this.pauseHint.textContent = online ? he.pause.onlineHint : he.pause.hint;
     this.hideAll();
     this.pause.hidden = false;
     (this.pause.querySelector('[data-action=resume]') as HTMLButtonElement).focus({ preventScroll: true });
@@ -243,7 +316,7 @@ export class Screens {
 
   /** Visible buttons of the open screen, for gamepad navigation. */
   buttons(): HTMLElement[] {
-    const scr = [this.main, this.settings, this.pause].find((s) => !s.hidden);
+    const scr = [this.main, this.settings, this.pause, this.online].find((s) => !s.hidden);
     if (!scr) return [];
     return [...scr.querySelectorAll<HTMLElement>('button, input')].filter((b) => !(b as HTMLButtonElement).disabled && b.offsetParent !== null);
   }

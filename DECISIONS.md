@@ -241,3 +241,27 @@ failed armoured sorties against the same tower (typically one under the indestru
 it switches to the helicopter, which can bring a tower down in about five seconds of fire.
 Measured over seeds 1–10, AI-vs-AI finishes within 15 minutes 8–10 times on every map, and hard AI
 beats a do-nothing player on every map tested.
+
+## Distribution and online play
+
+**An installable web app, not an .exe.** Your brothers use Windows and phones; one build serves both.
+The game is published to GitHub Pages and installs from the browser (Chrome/Edge on Windows and
+Android; Add to Home Screen on iOS). A service worker generated at build time precaches every file of
+the version, so the installed game runs offline; a new deploy changes the cache name and replaces it.
+A native Windows installer (Electron, ~100 MB) was the alternative; it adds a dependency and covers
+only Windows.
+
+**Online = deterministic lockstep over a relay.** The sim was already deterministic, so both machines
+run the same game and send only their inputs (five small numbers per tick), `delay` ticks ahead
+(4–20 ticks, chosen from the measured latency when the match starts). A tick runs only once both inputs
+are known; if the other side is late the game waits rather than guessing ("waiting for the other
+player" appears after half a second). Every two seconds both sides compare a hash of the whole state;
+if they differ (e.g. iPhone and Windows computing a trigonometric function differently) the host sends
+its state and the guest replays from it. A bug found this way: `Math.round(-0.1)` is `-0`, which JSON
+sends as `0`, and `atan2` treats the two differently; the wire format now normalises it.
+
+**Relay, not peer-to-peer.** A ~150-line Node server with no dependencies (`server/relay.mjs`, a minimal
+WebSocket implementation) pairs two players by a four-letter code and forwards messages. It works behind
+any home router, unlike direct WebRTC, at the cost of one free hosting account (Render blueprint in
+`render.yaml`). Online games do not pause (the pause menu stays available) and end when either player
+leaves.

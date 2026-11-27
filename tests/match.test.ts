@@ -52,3 +52,17 @@ describe('determinism', () => {
     expect(() => step(s, [idleIntent(), idleIntent()], 0.02)).toThrow();
   });
 });
+
+describe('serialisation', () => {
+  it('round-trips a state mid-match, and the copy keeps simulating identically', async () => {
+    const { serialize, deserialize } = await import('../src/sim');
+    const a = runScripted(5, 60).s;
+    const b = deserialize(serialize(a));
+    expect(hashState(b)).toBe(hashState(a));
+    for (let i = 0; i < 600; i++) {
+      step(a, [idleIntent(), idleIntent()]);
+      step(b, [idleIntent(), idleIntent()]);
+    }
+    expect(hashState(b)).toBe(hashState(a));
+  });
+});

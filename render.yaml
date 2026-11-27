@@ -1,0 +1,13 @@
+# Render blueprint for the online-play relay (free plan).
+# Render dashboard: New + > Blueprint > pick this repository > Apply.
+services:
+  - type: web
+    name: mivtza-relay
+    runtime: node
+    plan: free
+    buildCommand: echo "no build needed"
+    startCommand: node server/relay.mjs
+    healthCheckPath: /
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://avitawill.github.io,http://127.0.0.1:5173,http://localhost:5173

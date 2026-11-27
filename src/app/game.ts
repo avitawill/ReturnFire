@@ -16,6 +16,25 @@ import { Screens } from '../ui/screens';
 import { EventBus } from './bus';
 import { AiController, type Controller } from './controllers';
 import { loadSettings, saveSettings, type Settings } from './settings';
+import { RelayClient, relayUrl, saveRelayUrl, type RelayEvent } from '../net/client';
+import { delayForRtt, Lockstep, type NetMsg } from '../net/lockstep';
+import { he } from '../i18n/he';
+
+interface NetSetup {
+  k: 'setup';
+  seed: number;
+  map: string;
+  delay: number;
+}
+
+interface NetSession {
+  client: RelayClient;
+  local: Side;
+  lock: Lockstep | null;
+  ended: boolean;
+  stallT: number;
+  off: () => void;
+}
 
 export interface GameConfig {
   seed?: number;
@@ -72,6 +91,9 @@ export class Game {
   readonly stats = { fps: 0, frames: 0, frameMs: 0, ticks: 0, cpuMs: 0, calls: 0, triangles: 0 };
   private fpsAcc = 0;
   private fpsN = 0;
+  /** Online session, if any. */
+  net: NetSession | null = null;
+  private banner: HTMLDivElement;
 
   constructor(root: HTMLElement, cfg: GameConfig = {}) {
     this.root = root;
@@ -82,6 +104,10 @@ export class Game {
     if (cfg.difficulty) this.settings.difficulty = cfg.difficulty;
     if (cfg.map) this.settings.map = cfg.map;
     this.speed = cfg.speed ?? 1;
+    this.banner = document.createElement('div');
+    this.banner.className = 'net-banner';
+    this.banner.hidden = true;
+    root.append(this.banner);
     this.reducedMotion = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     this.makeRenderer(this.settings.quality);
     this.bus.on((ev) => this.renderer.onEvents(ev));
@@ -109,6 +135,10 @@ export class Game {
       },
       resume: () => this.setPaused(false),
       quit: () => this.showMenu(),
+      openOnline: () => this.screens.showOnline(relayUrl()),
+      onlineCreate: (relay) => void this.hostOnline(relay),
+      onlineJoin: (code, relay) => void this.joinOnline(code, relay),
+      onlineCancel: () => this.showMenu(),
       install: () => {
         const p = this.installPrompt;
         this.installPrompt = null;
@@ -184,6 +214,7 @@ export class Game {
   }
 
   showMenu() {
+    this.leaveOnline();
     this.phase = 'menu';
     this.paused = false;
     this.audio.stopMusic();
@@ -212,22 +243,23 @@ export class Game {
     return [[this.keyboards.p1], [this.keyboards.p2]];
   }
 
-  startMatch(players: 1 | 2, seed?: number) {
+  startMatch(players: 1 | 2, seed?: number, online?: { local: Side; map: string; delay: number }) {
     const s = this.settings;
+    if (!online) this.leaveOnline();
     this.players = players;
     this.seed = seed ?? (s.map === 'random' ? s.randomSeed : (Math.random() * 2 ** 31) | 0);
-    this.state = createGame({ seed: this.seed, map: s.map });
+    this.state = createGame({ seed: this.seed, map: online?.map ?? s.map });
     this.renderer.setState(this.state);
     this.clearLayers();
     const devices = this.assignDevices(players);
     for (let i = 0; i < players; i++) {
-      const side = i as Side;
+      const side = (online ? online.local : i) as Side;
       const layer = new PlayerLayer(
         this.root,
         side,
         {
           select: (t) => this.inputs[i].select(t),
-          again: () => this.startMatch(this.players),
+          again: () => (this.net ? this.showMenu() : this.startMatch(this.players)),
           toMenu: () => this.showMenu(),
           toggleSound: () => {
             this.audio.unlock();
@@ -245,8 +277,22 @@ export class Game {
     }
     // Keep the full-screen overlays above the player layers.
     this.root.append(this.screens.root);
-    this.opponent = players === 1 ? new AiController(1, s.difficulty, this.seed) : null;
-    this.audio.setPlayers(players === 1 ? [0] : [0, 1]);
+    this.opponent = players === 1 && !online ? new AiController(1, s.difficulty, this.seed) : null;
+    this.audio.setPlayers(online ? [online.local] : players === 1 ? [0] : [0, 1]);
+    if (online && this.net) {
+      const net = this.net;
+      net.lock = new Lockstep({
+        state: this.state,
+        local: online.local,
+        delay: online.delay,
+        send: (m) => net.client.send(m),
+        onEvents: (ev) => this.bus.emit(ev),
+        onResync: (st) => {
+          this.state = st;
+          this.renderer.setState(st);
+        },
+      });
+    }
     this.audio.stopMusic();
     this.acc = 0;
     this.slowT = 0;
@@ -264,7 +310,7 @@ export class Game {
   setPaused(p: boolean) {
     if (this.phase !== 'play') return;
     this.paused = p;
-    if (p) this.screens.showPause();
+    if (p) this.screens.showPause(!!this.net);
     else {
       this.screens.hideAll();
       for (const i of this.inputs) i.reset();
@@ -274,10 +320,101 @@ export class Game {
   private onKey(e: KeyboardEvent) {
     if (e.code !== 'Escape') return;
     const open = this.screens.open;
-    if (open === 'settings') {
+    if (open === 'online') this.showMenu();
+    else if (open === 'settings') {
       if (this.screens.returnTo === 'pause') this.screens.showPause();
       else this.showMenu();
     } else if (open === 'pause') this.setPaused(false);
+  }
+
+  // ---------------------------------------------------------------- online
+
+  private async connectRelay(relay: string): Promise<RelayClient | null> {
+    this.leaveOnline();
+    if (relay && relay !== relayUrl()) saveRelayUrl(relay);
+    const client = new RelayClient();
+    this.screens.setOnlineStatus(he.online.connecting, '');
+    try {
+      await client.connect(relay || relayUrl());
+    } catch {
+      this.screens.setOnlineStatus(he.online.noServer, '');
+      return null;
+    }
+    const net: NetSession = { client, local: 0, lock: null, ended: false, stallT: 0, off: () => {} };
+    net.off = client.on((e) => this.onRelay(e));
+    this.net = net;
+    return client;
+  }
+
+  /** Create a room, wait for a friend, then pick the game and start as player 1. */
+  private async hostOnline(relay: string) {
+    const client = await this.connectRelay(relay);
+    if (!client) return;
+    this.net!.local = 0;
+    client.create();
+  }
+
+  private async joinOnline(code: string, relay: string) {
+    if (code.length < 4) return;
+    const client = await this.connectRelay(relay);
+    if (!client) return;
+    this.net!.local = 1;
+    client.join(code);
+  }
+
+  private onRelay(e: RelayEvent) {
+    const net = this.net;
+    if (!net) return;
+    if (e.t === 'created') this.screens.setOnlineStatus(he.online.waiting, e.code);
+    else if (e.t === 'error') this.screens.setOnlineStatus(e.e === 'no-room' ? he.online.noRoom : e.e === 'room-full' ? he.online.roomFull : he.online.noServer);
+    else if (e.t === 'paired') {
+      this.screens.setOnlineStatus(he.online.starting);
+      if (e.role === 'host') {
+        // Measure latency, then choose the input delay, the map and the seed for both.
+        for (let i = 0; i < 4; i++) setTimeout(() => net.client.ping(), i * 120);
+        setTimeout(() => {
+          if (this.net !== net) return;
+          const s = this.settings;
+          const setup: NetSetup = {
+            k: 'setup',
+            seed: s.map === 'random' ? s.randomSeed : (Math.random() * 2 ** 31) | 0,
+            map: s.map,
+            delay: delayForRtt(net.client.rtt * 2),
+          };
+          net.client.send(setup);
+          this.startMatch(1, setup.seed, { local: 0, map: setup.map, delay: setup.delay });
+        }, 700);
+      }
+    } else if (e.t === 'm') {
+      const d = e.d as NetMsg | NetSetup | { k: 'bye' };
+      if (d.k === 'setup') this.startMatch(1, d.seed, { local: 1, map: d.map, delay: d.delay });
+      else if (d.k === 'bye') this.peerGone();
+      else net.lock?.receive(d);
+    } else if (e.t === 'peer-left' || e.t === 'closed') {
+      if (this.phase === 'play') this.peerGone();
+      else this.screens.setOnlineStatus(he.online.peerLeft, '');
+    }
+  }
+
+  private peerGone() {
+    const net = this.net;
+    if (!net || net.ended) return;
+    net.ended = true;
+    if (this.state.winner !== -1) return;
+    for (const l of this.layers) l.say(he.online.peerLeft, 6);
+    setTimeout(() => {
+      if (this.net === net) this.showMenu();
+    }, 4000);
+  }
+
+  private leaveOnline() {
+    const net = this.net;
+    if (!net) return;
+    this.net = null;
+    net.off();
+    net.client.send({ k: 'bye' });
+    net.client.close();
+    this.banner.hidden = true;
   }
 
   start() {
@@ -296,6 +433,7 @@ export class Game {
 
   /** True when the sim should advance. */
   private get running() {
+    if (this.net) return this.phase === 'play' && !this.net.ended && !!this.net.lock && this.state.winner === -1;
     if (this.phase !== 'play' || this.paused || this.state.winner !== -1) return false;
     const pending = this.inputs.some((i) => i.hasPendingSelect);
     // Single player pauses while choosing a vehicle (prototype); split screen runs once anyone has launched.
@@ -351,13 +489,23 @@ export class Game {
       let n = 0;
       const cap = MAX_STEPS_PER_FRAME * Math.max(1, Math.ceil(this.speed));
       while (this.acc >= DT && n < cap) {
+        if (this.net) {
+          if (!this.netTick()) {
+            // Waiting for the other player's input: hold the clock, don't pile up time.
+            this.acc = Math.min(this.acc, DT * 3);
+            break;
+          }
+        } else this.tick();
         this.acc -= DT;
         n++;
-        this.tick();
         if (this.state.winner !== -1) break;
       }
       if (n === cap) this.acc = 0;
+      // Fell behind the other machine (e.g. a slow frame): catch up a little.
+      const lock = this.net?.lock;
+      if (lock && lock.buffered > lock.delay + 6) for (let k = 0; k < 4 && this.netTick(); k++);
     }
+    this.updateNetBanner(dt);
     if (this.phase === 'play' && !this.paused) this.gamepadBays();
     for (const l of this.layers) l.update(dt, this.state, this.time);
     this.updateBays(dt);
@@ -374,8 +522,42 @@ export class Game {
     this.bus.emit(events);
   }
 
+  /** One online tick; false while the other player's input has not arrived. */
+  private netTick(): boolean {
+    const net = this.net!;
+    const input = this.inputOf(net.local);
+    const ok = net.lock!.tick(input ? input.intent() : { move: { x: 0, y: 0 }, fire: false, secondary: false, select: null });
+    if (ok) {
+      net.stallT = 0;
+      this.stats.ticks++;
+    }
+    this.state = net.lock!.state;
+    return ok;
+  }
+
+  private updateNetBanner(dt: number) {
+    const net = this.net;
+    if (!net?.lock || net.ended || this.state.winner !== -1) {
+      this.banner.hidden = true;
+      return;
+    }
+    net.stallT += dt;
+    // Only mention it when the wait is noticeable.
+    this.banner.hidden = net.stallT < 0.5;
+    this.banner.textContent = he.online.lagging;
+  }
+
+  private layerOf(side: Side) {
+    return this.layers.find((l) => l.side === side);
+  }
+
+  private inputOf(side: Side) {
+    const i = this.layers.findIndex((l) => l.side === side);
+    return i >= 0 ? this.inputs[i] : undefined;
+  }
+
   private intentFor(side: Side): Intent {
-    const input = this.inputs[side];
+    const input = this.inputOf(side);
     if (input) return input.intent();
     return this.opponent!.intent(this.state, side);
   }
@@ -421,10 +603,10 @@ export class Game {
       for (const l of this.layers) l.onEvent(e, this.state);
       if (e.type === 'vehicleSpawned') {
         this.begun = true;
-        this.inputs[e.side]?.clearSelect();
-        this.layers[e.side]?.closeBay(this.state);
+        this.inputOf(e.side)?.clearSelect();
+        this.layerOf(e.side)?.closeBay(this.state);
       } else if (e.type === 'vehicleDocked') {
-        const l = this.layers[e.side];
+        const l = this.layerOf(e.side);
         if (l && this.state.winner === -1) l.openBay('dock', this.state);
       } else if (e.type === 'gameOver') {
         for (const l of this.layers) {
@@ -464,7 +646,7 @@ export class Game {
     const t = this.skullT[side];
     if (t === null || this.state.winner !== -1 || (!force && t < 0.6)) return;
     this.skullT[side] = null;
-    this.layers[side]?.openBay('lost', this.state);
+    this.layerOf(side)?.openBay('lost', this.state);
   }
 
   private updateFx(dt: number) {

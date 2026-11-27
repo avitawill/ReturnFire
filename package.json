@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "npm run build && playwright test --trace off",
-    "models": "node scripts/run.mjs scripts/build-models.ts"
+    "models": "node scripts/run.mjs scripts/build-models.ts",
+    "relay": "node server/relay.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

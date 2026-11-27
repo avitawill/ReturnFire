@@ -8,7 +8,8 @@ exposed, fetch it with a jeep (the only vehicle that can carry it) and bring it 
 Each side has a limited stock of helicopters, tanks, rocket launchers and jeeps; docking at the bunker
 repairs a vehicle and returns it to stock. Lose your last jeep and you lose the war.
 
-Play against the AI (easy / medium / hard) or split-screen against a friend.
+Play against the AI (easy / medium / hard), split-screen against a friend, or online by room code.
+Seven hand-made maps plus random ones. Installable on Windows, Android and iPhone; works offline.
 
 ## Run it
 
@@ -20,6 +21,46 @@ npm run preview      # serve dist/ at http://127.0.0.1:4173
 ```
 
 Node 20+ is needed. The build has no server component; copy `dist/` anywhere.
+
+## Install it (for players)
+
+Open **https://avitawill.github.io/ReturnFire/** (once GitHub Pages is switched on, see below).
+
+- **Windows (Chrome or Edge):** press **התקנת המשחק** in the main menu, or the install icon at the right of
+  the address bar. The game gets a Start-menu and desktop icon, opens in its own window, and works offline.
+- **Android (Chrome):** the same button, or menu ⋮ > *Install app* / *Add to Home screen*.
+- **iPhone / iPad (Safari):** Share button > *Add to Home Screen*.
+
+Updates arrive by themselves: the next time the game is opened online it fetches the new version.
+
+## Play online
+
+One player chooses **משחק ברשת** > **יצירת חדר** and sends the four-letter code to the other, who types
+it under **הצטרפות**. The map is whatever the room's creator picked in the main menu. Both machines run
+the same deterministic game and only exchange inputs, so it works fine on ordinary home connections.
+
+This needs the small relay server in `server/relay.mjs` running somewhere reachable. One-time setup:
+
+1. On [render.com](https://render.com) (free plan): *New +* > *Blueprint* > choose this repository >
+   *Apply*. It reads `render.yaml` and starts the relay. Note its address, e.g.
+   `https://mivtza-relay.onrender.com`.
+2. In this GitHub repository: *Settings* > *Secrets and variables* > *Actions* > *Variables* >
+   *New repository variable*: name `RELAY_URL`, value `wss://mivtza-relay.onrender.com`
+   (`wss://`, not `https://`). Then re-run the *Publish game* workflow.
+
+Without step 2 players can paste the relay address under *כתובת שרת* on the online screen.
+Render's free plan sleeps after 15 minutes without players; the first connection then takes up to a
+minute while it wakes. Any host that runs Node 18+ and allows WebSockets works too
+(`PORT=8787 node server/relay.mjs`; set `ALLOWED_ORIGINS` to the game's address).
+
+For local testing: `npm run relay` and `npm run dev`; the game finds a relay on port 8787 of the same
+machine by default.
+
+## Publish to GitHub Pages (one time)
+
+The workflow `.github/workflows/pages.yml` tests, builds and publishes on every push. GitHub only needs
+to be told to accept it: repository *Settings* > *Pages* > *Build and deployment* > *Source*:
+**GitHub Actions**. Then re-run the latest *Publish game* run (or push any commit).
 
 ## Controls
 
@@ -82,7 +123,8 @@ See `DECISIONS.md` for the choices made along the way and `ASSETS.md` for asset 
 
 ## What I would do next
 
-1. **Add the two missing recordings.** Holst's *Mars* and Grieg's *Mountain King* have verified CC0/PD
+1. **Online polish:** reconnect after a dropped connection, a chat/emote line, and a rematch button that
+   keeps the room. **Add the two missing recordings.** Holst's *Mars* and Grieg's *Mountain King* have verified CC0/PD
    recordings on Wikimedia Commons (listed in `ASSETS.md`) but downloads were rate-limited; until then the
    tank and launcher play synthesised arrangements.
 2. **Measure on real hardware.** The build environment had no GPU, so the 60 fps / 30 fps targets are only
@@ -93,8 +135,9 @@ See `DECISIONS.md` for the choices made along the way and `ASSETS.md` for asset 
    the AI's endgame more interesting. A visible side-1 bias in AI-vs-AI (around 60–70 % on some maps)
    deserves a look.
 4. **Render interpolation** between 60 Hz sim ticks for smoother motion on 120 Hz displays.
-5. **Fog of war** on the minimap, so scouting with the helicopter matters.
-6. **More hand-made maps** and a map preview in the menu; random maps could vary tower density and add
+5. **Native Windows installer** (Electron or Tauri) if the installable web app turns out not to be enough.
+6. **Fog of war** on the minimap, so scouting with the helicopter matters.
+7. **More hand-made maps** and a map preview in the menu; random maps could vary tower density and add
    lakes and cliffs.
-7. **Accessibility:** remappable keys, a colour-blind palette for the two sides, and screen-reader
+8. **Accessibility:** remappable keys, a colour-blind palette for the two sides, and screen-reader
    announcements for the most important events.
