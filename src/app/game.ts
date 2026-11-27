@@ -109,7 +109,14 @@ export class Game {
       },
       resume: () => this.setPaused(false),
       quit: () => this.showMenu(),
+      install: () => {
+        const p = this.installPrompt;
+        this.installPrompt = null;
+        this.screens.setInstall(false, false);
+        void p?.prompt();
+      },
     });
+    this.setupInstall();
     addEventListener('resize', () => this.resize());
     if (cfg.seed !== undefined) this.seed = cfg.seed;
     if (cfg.autostart) this.startMatch(cfg.autostart, cfg.seed);
@@ -118,6 +125,22 @@ export class Game {
   }
 
   // ---------------------------------------------------------------- setup
+
+  private installPrompt: { prompt(): Promise<unknown> } | null = null;
+
+  /** Installable app: Chrome/Edge fire beforeinstallprompt; iOS Safari needs Share > Add to Home Screen. */
+  private setupInstall() {
+    const standalone = matchMedia?.('(display-mode: standalone)').matches || matchMedia?.('(display-mode: fullscreen)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
+    if (standalone) return;
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    this.screens.setInstall(false, ios);
+    addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      this.installPrompt = e as unknown as { prompt(): Promise<unknown> };
+      this.screens.setInstall(true, false);
+    });
+    addEventListener('appinstalled', () => this.screens.setInstall(false, false));
+  }
 
   private makeRenderer(q: Quality) {
     if (this.renderer) {

@@ -47,3 +47,12 @@ if (!webglAvailable()) {
     (window as unknown as { __mivtza: Game }).__mivtza = game;
   });
 }
+
+// Offline support for the installed app (production builds only).
+if ('serviceWorker' in navigator && import.meta.env.PROD && isSecureContext) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {
+      /* offline play unavailable; the game still works online */
+    });
+  });
+}

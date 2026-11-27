@@ -36,6 +36,8 @@ export const he = {
     difficulty: 'רמת קושי',
     difficulties: { easy: 'קל', medium: 'בינוני', hard: 'קשה' } as Record<string, string>,
     settings: 'הגדרות',
+    install: 'התקנת המשחק',
+    iosInstall: 'להתקנה באייפון: כפתור השיתוף ואז "הוספה למסך הבית".',
     twoControls: 'שחקן 1: מקלדת (או בקר ראשון). שחקן 2: בקר. בלי בקרים: שחקן 1 WASD ו-F, שחקן 2 חצים ו-Enter.',
     padsFound: (n: number) => (n === 0 ? 'לא זוהו בקרים' : n === 1 ? 'זוהה בקר אחד' : `זוהו ${n} בקרים`),
   },

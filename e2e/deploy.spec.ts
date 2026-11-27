@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 
 const DIST = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
-const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.glb': 'model/gltf-binary', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2' };
+const TYPES: Record<string, string> = { '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png', '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.glb': 'model/gltf-binary', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2' };
 let server: Server;
 const PORT = 4190;
 
@@ -51,6 +51,24 @@ test('the production build runs from a subfolder', async ({ page }) => {
   expect(music).toBe(200);
   expect(failed).toEqual([]);
   expect(errors).toEqual([]);
+});
+
+test('the installed app works offline', async ({ page, context }) => {
+  await page.goto(`http://127.0.0.1:${PORT}/games/mivtza/?seed=3`);
+  await page.waitForFunction(() => (window as any).__mivtza?.stats.frames > 3);
+  const manifest = await page.evaluate(() => fetch('manifest.webmanifest').then((r) => r.json()));
+  expect(manifest.icons.length).toBeGreaterThanOrEqual(3);
+  // Wait until the service worker has cached everything and controls the page.
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+  await context.setOffline(true);
+  await page.reload();
+  await page.waitForFunction(() => (window as any).__mivtza?.stats.frames > 3);
+  await page.click('[data-action=single]');
+  await page.click('[data-vehicle=jeep]');
+  await expect.poll(() => page.evaluate(() => (window as any).__mivtza.state.sides[0].vehicle?.type)).toBe('jeep');
+  await context.setOffline(false);
 });
 
 test('graphics "low" turns off shadows and explosion lighting', async ({ page }) => {

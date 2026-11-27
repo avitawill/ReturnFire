@@ -22,6 +22,7 @@ export interface ScreenCallbacks {
   setMuted(m: boolean): void;
   resume(): void;
   quit(): void;
+  install(): void;
 }
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => {
@@ -66,6 +67,8 @@ export class Screens {
   private reroll: HTMLButtonElement;
   private seedRow!: HTMLDivElement;
   private padsLine: HTMLParagraphElement;
+  private installBtn!: HTMLButtonElement;
+  private iosHint!: HTMLParagraphElement;
   private sliders: Record<'master' | 'music' | 'sfx', HTMLInputElement>;
   private mute: HTMLInputElement;
   private cb: ScreenCallbacks;
@@ -108,8 +111,17 @@ export class Screens {
       this.settingsFrom = 'main';
       cb.openSettings();
     });
-    foot.append(this.padsLine, settingsBtn);
-    sheet.append(el('p', 'eyebrow', he.main.eyebrow), el('h1', '', he.title), el('p', '', he.main.body), actions, this.mapSeg.wrap, this.diffSeg.wrap, el('p', 'small', he.main.twoControls), foot);
+    this.installBtn = el('button', 'ghost', he.main.install);
+    this.installBtn.type = 'button';
+    this.installBtn.dataset.action = 'install';
+    this.installBtn.hidden = true;
+    this.installBtn.addEventListener('click', () => cb.install());
+    this.iosHint = el('p', 'small', he.main.iosInstall);
+    this.iosHint.hidden = true;
+    const btns = el('div', 'actions');
+    btns.append(this.installBtn, settingsBtn);
+    foot.append(this.padsLine, btns);
+    sheet.append(el('p', 'eyebrow', he.main.eyebrow), el('h1', '', he.title), el('p', '', he.main.body), actions, this.mapSeg.wrap, this.diffSeg.wrap, el('p', 'small', he.main.twoControls), foot, this.iosHint);
     this.main.append(sheet);
 
     // Settings.
@@ -170,6 +182,12 @@ export class Screens {
 
     this.root.append(this.main, this.settings, this.pause);
     this.hideAll();
+  }
+
+  /** Offer installation: a button where the browser supports it, a hint on iPhone/iPad. */
+  setInstall(button: boolean, iosHint: boolean) {
+    this.installBtn.hidden = !button;
+    this.iosHint.hidden = !iosHint;
   }
 
   hideAll() {
