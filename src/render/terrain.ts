@@ -42,6 +42,9 @@ export class Terrain {
   /** One mesh per chunk; all share the vertex buffers. */
   readonly group = new THREE.Group();
   private colorAttr: THREE.BufferAttribute;
+  material!: THREE.MeshLambertMaterial;
+  /** Shared with the shader: time drives drifting cloud shadows and surf. */
+  readonly uniforms = { uTime: { value: 0 }, uDetail: { value: 1 } };
   readonly NX: number;
   readonly NZ: number;
   /** Height per vertex. */
@@ -90,6 +93,8 @@ export class Terrain {
     full.computeVertexNormals();
     const normal = full.getAttribute('normal');
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.material = mat;
+    patchGroundShader(mat, this.uniforms);
     const step = CHUNK * R;
     for (let cj = 0; cj < this.NZ - 1; cj += step)
       for (let ci = 0; ci < this.NX - 1; ci += step) {
@@ -165,6 +170,16 @@ export class Terrain {
     }
     const k = vj * this.NX + vi;
     out.setRGB(r / 4, g / 4, b / 4);
+    // Contact shading: ground next to trees and buildings is a little darker.
+    let occ = 0;
+    for (let a = 0; a < 4; a++) {
+      const tx = Math.floor((x + (a & 1 ? e : -e)) / TILE);
+      const tz = Math.floor((z + (a & 2 ? e : -e)) / TILE);
+      if (tx < 0 || tz < 0 || tx >= W || tz >= H) continue;
+      const i = tz * W + tx;
+      if (this.world.block[i] || tiles[i] === Tile.Tree) occ++;
+    }
+    out.multiplyScalar(1 - occ * 0.06);
     const h = this.hg[k];
     // Beaches follow the smooth heightfield rather than the tile grid.
     if (h < G * 0.85 && h > -1) out.lerp(this.colours[Tile.Sand], 1 - smooth(G * 0.45, G * 0.85, h));
@@ -309,4 +324,53 @@ function tileHeights(world: World, flat: Uint8Array): Float32Array {
       }
   }
   return th;
+}
+
+/**
+ * Adds to the Lambert terrain shader: fine ground detail (so flat colours read
+ * as grass, sand and dirt up close), slowly drifting cloud shadows, and an
+ * animated band of surf where the land meets the sea.
+ */
+function patchGroundShader(mat: THREE.MeshLambertMaterial, uniforms: { uTime: { value: number }; uDetail: { value: number } }) {
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, uniforms);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGround;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGround = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying vec3 vGround;
+uniform float uTime;
+uniform float uDetail;
+float gHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float gNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(gHash(i), gHash(i + vec2(1, 0)), u.x), mix(gHash(i + vec2(0, 1)), gHash(i + vec2(1, 1)), u.x), u.y);
+}`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+{
+  vec2 p = vGround.xz;
+  float h = vGround.y;
+  // Fine detail: two octaves of value noise, stronger on land than under water.
+  float d = gNoise(p * 0.11) * 0.6 + gNoise(p * 0.37) * 0.4;
+  float land = smoothstep(-0.5, 1.5, h);
+  diffuseColor.rgb *= 1.0 + (d - 0.5) * 0.22 * uDetail * land;
+  // Cloud shadows drifting across the islands.
+  float c = gNoise(p * 0.0021 + vec2(uTime * 0.012, uTime * 0.005)) * 0.65 + gNoise(p * 0.0057 - vec2(uTime * 0.008, 0.0)) * 0.35;
+  diffuseColor.rgb *= 1.0 - smoothstep(0.55, 0.8, c) * 0.22 * uDetail;
+  // Surf: a foamy, moving band along the waterline; wet, darker sand just above it.
+  float wave = sin(uTime * 1.6 + d * 6.0 + (p.x + p.y) * 0.02) * 0.45;
+  float foam = smoothstep(-1.6, -0.6, h + wave) * (1.0 - smoothstep(-0.2, 0.5, h + wave));
+  foam *= smoothstep(0.35, 0.65, gNoise(p * 0.25 + uTime * 0.4));
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.96, 0.95), foam * 0.85 * uDetail);
+  diffuseColor.rgb *= 1.0 - (smoothstep(0.0, 0.5, h) * (1.0 - smoothstep(0.5, 1.6, h))) * 0.18;
+}`,
+      );
+  };
 }

@@ -64,12 +64,16 @@ export class GameRenderer {
     this.renderer.shadowMap.enabled = this.preset.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Filmic response: brighter highlights roll off instead of clipping (explosions, sand).
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.95;
     const sky = new THREE.Color('#8fbcc6');
     this.scene.background = sky;
     this.scene.fog = new THREE.Fog(sky, 600, 2000);
-    this.scene.add(new THREE.HemisphereLight(0xd6ecff, 0x6b6a4a, 1.9));
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-    this.sun = new THREE.DirectionalLight(0xfff0d0, 2.4);
+    this.scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x5d5a3e, 1.7));
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+    // Warm, low-ish afternoon sun for long readable shadows.
+    this.sun = new THREE.DirectionalLight(0xffe2b8, 3.1);
     this.sun.castShadow = this.preset.shadows;
     this.sun.shadow.mapSize.set(this.preset.shadowMap, this.preset.shadowMap);
     this.sun.shadow.bias = -0.0006;
@@ -84,7 +88,7 @@ export class GameRenderer {
     if (this.actors) this.scene.remove(this.actors.group);
     if (this.effects) this.scene.remove(this.effects.group);
     this.state = state;
-    this.world = new WorldView(state);
+    this.world = new WorldView(state, this.quality !== 'low');
     this.actors = new ActorView(state, this.world.terrain);
     this.effects = new Effects(state, this.world.terrain, {
       flashes: this.preset.flashes,

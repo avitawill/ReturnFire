@@ -62,7 +62,7 @@ export class WorldView {
   /** Fallen-flag markers on destroyed towers etc. are owned by ActorView; this is static. */
   readonly homeFlags: THREE.Object3D[] = [];
 
-  constructor(state: GameState) {
+  constructor(state: GameState, scatter = true) {
     this.state = state;
     const w = state.world;
     const flat = new Uint8Array(w.W * w.H);
@@ -81,7 +81,7 @@ export class WorldView {
     this.sea = new THREE.Mesh(
       new THREE.PlaneGeometry(span, span),
       new THREE.MeshPhongMaterial({
-        color: '#1f7483', transparent: true, opacity: 0.74, shininess: 50, specular: new THREE.Color('#5f97a2'),
+        color: '#185e70', transparent: true, opacity: 0.8, shininess: 70, specular: new THREE.Color('#2f5961'),
         normalMap: this.seaNormal, normalScale: new THREE.Vector2(0.3, 0.3), depthWrite: false,
       }),
     );
@@ -92,6 +92,7 @@ export class WorldView {
     this.group.add(this.sea);
 
     this.buildTreesAndBridges();
+    if (scatter) this.buildScatter();
     this.buildStructures();
     this.buildPads();
   }
@@ -128,6 +129,38 @@ export class WorldView {
     this.group.add(deckM);
     this.group.add(instanced(new THREE.BoxGeometry(TILE, 2, 2), new THREE.MeshLambertMaterial({ color: '#5d452b' }), rail));
     this.group.add(instanced(new THREE.CylinderGeometry(3, 3, 18, 8), new THREE.MeshLambertMaterial({ color: '#5d452b' }), pile, false));
+  }
+
+  /** Decorative rocks on beaches and grass tufts inland (no gameplay effect). */
+  private buildScatter() {
+    const { W, H, tiles, block } = this.state.world;
+    const b = new ModelBuilder();
+    const rock = new THREE.DodecahedronGeometry(1, 0);
+    const tuft = new THREE.ConeGeometry(1, 1, 4);
+    for (let ty = 1; ty < H - 1; ty++)
+      for (let tx = 1; tx < W - 1; tx++) {
+        const i = ty * W + tx;
+        if (block[i]) continue;
+        const t = tiles[i];
+        const n = hash2(tx * 1.31, ty * 2.17);
+        const x = (tx + 0.2 + hash2(ty, tx * 3.1) * 0.6) * TILE;
+        const z = (ty + 0.2 + hash2(tx * 5.7, ty) * 0.6) * TILE;
+        const gy = this.terrain.heightAt(x, z);
+        if (t === Tile.Sand && n < 0.16) {
+          const s = 4 + n * 26;
+          b.add(rock.clone(), n < 0.08 ? '#8a8576' : '#9c9585', x, gy + s * 0.25, z, { sx: s, sy: s * 0.6, sz: s * 0.8, ry: n * 40, rx: n * 9 });
+        } else if (t === Tile.Grass && n < 0.3) {
+          for (let k = 0; k < 3; k++) {
+            const ox = (hash2(tx + k, ty * 7) - 0.5) * 14;
+            const oz = (hash2(ty + k, tx * 7) - 0.5) * 14;
+            b.add(tuft.clone(), k % 2 ? '#5f8a35' : '#76993f', x + ox, gy + 2.2, z + oz, { sx: 3.2, sy: 5 + k * 1.5, sz: 3.2, ry: k + n * 10 });
+          }
+        }
+      }
+    if (b.empty) return;
+    const m = mesh(b.build(), MATERIALS.matte, false);
+    m.receiveShadow = true;
+    this.group.add(m);
   }
 
   private chunkOf(tx: number, ty: number) {
@@ -219,6 +252,7 @@ export class WorldView {
 
   /** Per-frame animation of turret heads, sea, collapses. */
   update(dt: number, time: number) {
+    this.terrain.uniforms.uTime.value = time;
     for (const st of this.state.structs) {
       if (!st.alive) continue;
       const slot = this.slots.get(st.id);
