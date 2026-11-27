@@ -224,3 +224,20 @@ page's `navigator.getGamepads` is replaced before load). Player 2 keeps sending 
 guns until none are left, so the match ends with a real `noJeeps` victory. Routes for the simulated
 player come from the sim's own A* on an identical world. It runs at `?speed=6` because the CI browser
 renders on the CPU.
+
+## After milestone 5: four more maps
+
+*The Lagoon* (one landmass around a central lagoon), *The Archipelago* (islets; one long central bridge
+for tanks, the rest is sea, so towers on bridge-less islets are for the helicopter or a jeep),
+*The Canals* (a plateau cut by two canals with three crossings each) and *The Two Rivers* (one continent,
+rivers crossed by long bridges). Maps may now cut lakes and channels out of land (`lakes`).
+
+Towers and the bunker must stand on land. A tower drawn slightly off the coast moves to the nearest
+spot within four tiles that fits on both mirrored sides; the generator only fails when there is none.
+
+The AI learned two things from these maps: tanks and launchers skip towers they cannot drive to
+(checked once per tower with A* on an open map), and the helicopter is sent instead; and after two
+failed armoured sorties against the same tower (typically one under the indestructible bunker guards),
+it switches to the helicopter, which can bring a tower down in about five seconds of fire.
+Measured over seeds 1–10, AI-vs-AI finishes within 15 minutes 8–10 times on every map, and hard AI
+beats a do-nothing player on every map tested.

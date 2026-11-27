@@ -19,7 +19,17 @@ const mirrorTile = (def: MapDef, tx: number, ty: number, w = 1, h = 1): [number,
   def.H - ty - h,
 ];
 
+function inBlob(is: { cx: number; cy: number; rx: number; ry: number; ph: number }, x: number, y: number): boolean {
+  const dx = (x + 0.5 - is.cx) / is.rx;
+  const dy = (y + 0.5 - is.cy) / is.ry;
+  const an = Math.atan2(dy, dx);
+  const w = 1 + 0.1 * Math.sin(an * 4 + is.ph) + 0.06 * Math.sin(an * 6 + is.ph * 2);
+  return dx * dx + dy * dy < w * w;
+}
+
 function islandLand(def: MapDef, x: number, y: number): boolean {
+  // Lakes and channels cut water back into the islands.
+  if (def.lakes?.some((l) => inBlob(l, x, y))) return false;
   for (const is of def.islands) {
     const dx = (x + 0.5 - is.cx) / is.rx;
     const dy = (y + 0.5 - is.cy) / is.ry;
@@ -113,18 +123,30 @@ export function generateWorld(def: MapDef, seed: number): GeneratedWorld {
     return true;
   };
 
-  const okBunker = add('bunker', bx, by, 2, 2, Infinity, false, true);
+  const okBunker = add('bunker', bx, by, 2, 2, Infinity, true, true);
   if (!okBunker) throw new Error(`map ${def.name}: bunker does not fit`);
   const bunkerIdx: [number, number] = [structs.length - 2, structs.length - 1];
   for (const [x, y] of def.guards) add('guard', x, y, 1, 1, Infinity, false, true);
-  for (const [x, y] of def.towers) if (!add('tower', x, y, 2, 2, DEFENCE.tower.hp)) throw new Error(`map ${def.name}: tower at ${x},${y} does not fit`);
+  // Towers must stand on land; one drawn slightly off the coast moves to the nearest spot that fits.
+  const towerAt: [number, number][] = [];
   for (const [x, y] of def.towers) {
+    let placed: [number, number] | null = null;
+    for (let r = 0; r <= 4 && !placed; r++)
+      for (let dy = -r; dy <= r && !placed; dy++)
+        for (let dx = -r; dx <= r && !placed; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          if (add('tower', x + dx, y + dy, 2, 2, DEFENCE.tower.hp, true)) placed = [x + dx, y + dy];
+        }
+    if (!placed) throw new Error(`map ${def.name}: tower at ${x},${y} does not fit`);
+    towerAt.push(placed);
+  }
+  for (const [x, y] of towerAt) {
     add('turret', x - 2, y - 2, 1, 1, DEFENCE.turret.hp, true);
     add('turret', x + 3, y + 3, 1, 1, DEFENCE.turret.hp, true);
   }
   for (const [x, y] of def.turrets) add('turret', x, y, 1, 1, DEFENCE.turret.hp, true);
   for (const [x, y] of def.aa) add('aa', x, y, 1, 1, DEFENCE.aa.hp, true);
-  for (const [tx, ty] of def.towers)
+  for (const [tx, ty] of towerAt)
     for (let y = ty - 2; y <= ty + 3; y++)
       for (let x = tx - 2; x <= tx + 3; x++) {
         if (x !== tx - 2 && x !== tx + 3 && y !== ty - 2 && y !== ty + 3) continue;

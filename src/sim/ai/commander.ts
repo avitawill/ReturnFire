@@ -8,6 +8,7 @@ import { idleIntent, otherSide, type GameState, type Intent, type Side, type Str
 import { adiff, clamp, dist } from '../math';
 import { makeRng, rand, type RngHolder } from '../rng';
 import { PLAYER, VEHICLES, type VehicleType } from '../tuning';
+import { findPath } from '../world';
 import { guardWater, newNav, steerTo, type NavMemory } from './nav';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
@@ -64,6 +65,7 @@ export class AiCommander {
   private unstickDir = 1;
   /** Sorties against a target that ended in retreat. Makes the AI try another tower. */
   private failures = new Map<number, number>();
+  private reach = new Map<number, boolean>();
   debug: AiDebug = { mode: 'idle', hasDestination: false, target: -1 };
 
   constructor(side: Side, difficulty: Difficulty = 'medium', seed = 1) {
@@ -144,9 +146,17 @@ export class AiCommander {
     const keepJeep = st.jeep <= 1;
     const attackers: VehicleType[] = ['tank', 'launcher', 'heli'];
     const avail = attackers.filter(has);
+    // Towers that no tank can reach (islets without a bridge) are for the helicopter, or a swimming jeep.
+    if (!this.cheapestTower(s, false)) {
+      if (has('heli')) return 'heli';
+      if (st.jeep > 1) return 'jeep';
+    }
+    // Armour keeps failing against this tower (often one under the bunker guns): try the helicopter.
+    const g = this.cheapestTower(s, false);
+    if (g && has('heli') && (this.failures.get(g.st.id) ?? 0) >= 2) return 'heli';
     if (avail.length) {
       if (has('heli') && this.cheapestTower(s, true)?.threat === 0 && (!has('tank') || this.rngInt(3) === 0)) return 'heli';
-      return avail[0];
+      return avail.find((t) => t !== 'heli') ?? avail[0];
     }
     return keepJeep ? (st.jeep > 0 ? 'jeep' : null) : 'jeep';
   }
@@ -155,12 +165,29 @@ export class AiCommander {
     return Math.floor(rand(this.rng) * n);
   }
 
-  private cheapestTower(s: GameState, heli: boolean, from?: { x: number; y: number }) {
+  /**
+   * Can a tank or launcher drive to within reach of this tower at all (shooting
+   * through walls allowed)? Towers on islets without a bridge cannot be.
+   * Computed once per tower from our pad; the terrain never gains water.
+   */
+  private groundReachable(s: GameState, st: Structure): boolean {
+    let r = this.reach.get(st.id);
+    if (r === undefined) {
+      const sd = s.sides[this.side];
+      const open = { ...s.world, block: new Int16Array(s.world.block.length) };
+      r = !!findPath(open, sd.padX, sd.padY, st.x, st.y, 'heavy', { maxNodes: 20000 });
+      this.reach.set(st.id, r);
+    }
+    return r;
+  }
+
+  private cheapestTower(s: GameState, heli: boolean, from?: { x: number; y: number }, ground = !heli) {
     const foe = otherSide(this.side);
     const origin = from ?? { x: s.sides[this.side].padX, y: s.sides[this.side].padY };
     let best: { st: Structure; cost: number; threat: number } | null = null;
     for (const st of s.structs) {
       if (st.kind !== 'tower' || st.side !== foe || !st.alive) continue;
+      if (ground && !this.groundReachable(s, st)) continue;
       const threat = this.threatNear(s, st.x, st.y, heli);
       const cost = dist(origin.x, origin.y, st.x, st.y) + threat * 220 + (this.failures.get(st.id) ?? 0) * 300;
       if (!best || cost < best.cost) best = { st, cost, threat };
@@ -258,7 +285,8 @@ export class AiCommander {
   }
 
   private pickTower(s: GameState, v: Vehicle) {
-    const best = this.cheapestTower(s, v.type === 'heli', v);
+    const ground = v.type === 'tank' || v.type === 'launcher';
+    const best = this.cheapestTower(s, v.type === 'heli', v, ground) ?? (ground ? null : this.cheapestTower(s, true, v, false));
     this.target = best ? best.st.id : -1;
   }
 

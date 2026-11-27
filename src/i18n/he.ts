@@ -30,7 +30,7 @@ export const he = {
     single: 'שחקן יחיד',
     two: 'שני שחקנים',
     map: 'מפה',
-    maps: { twoShores: 'שני חופים', strait: 'המצר', atoll: 'האטול', random: 'מפה אקראית' } as Record<string, string>,
+    maps: { twoShores: 'שני חופים', strait: 'המצר', atoll: 'האטול', lagoon: 'הלגונה', archipelago: 'הארכיפלג', canals: 'התעלות', rivers: 'שני הנהרות', random: 'מפה אקראית' } as Record<string, string>,
     randomSeed: (n: number) => `מפה אקראית #${n}`,
     reroll: 'מפה אחרת',
     difficulty: 'רמת קושי',
