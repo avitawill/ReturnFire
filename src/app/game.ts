@@ -184,6 +184,7 @@ export class Game {
     this.root.prepend(this.canvas);
     this.renderer = new GameRenderer(this.canvas, q, this.reducedMotion);
     if (this.state) this.renderer.setState(this.state);
+    if (this.phase === 'play') this.renderer.setLocalSides(this.layers.map((l) => l.side));
   }
 
   private setQuality(q: Quality) {
@@ -217,6 +218,7 @@ export class Game {
 
   showMenu() {
     this.leaveOnline();
+    this.renderer.setLocalSides([]);
     this.phase = 'menu';
     this.paused = false;
     this.audio.stopMusic();
@@ -282,6 +284,7 @@ export class Game {
     this.root.append(this.screens.root);
     this.opponent = players === 1 && !online ? new AiController(1, s.difficulty, this.seed) : null;
     this.audio.setPlayers(online ? [online.local] : players === 1 ? [0] : [0, 1]);
+    this.renderer.setLocalSides(online ? [online.local] : players === 1 ? [0] : [0, 1]);
     if (online && this.net) {
       const net = this.net;
       net.lock = new Lockstep({

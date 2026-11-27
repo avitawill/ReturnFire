@@ -8,6 +8,7 @@ import { TILE, VEHICLES } from '../sim/tuning';
 import { ActorView } from './actors';
 import { FollowCamera } from './camera';
 import { Effects } from './effects';
+import { ReticleView } from './reticle';
 import { SkullScene } from './skull';
 import { WorldView } from './worldview';
 
@@ -49,6 +50,8 @@ export class GameRenderer {
   world: WorldView | null = null;
   actors: ActorView | null = null;
   effects: Effects | null = null;
+  reticles: ReticleView | null = null;
+  private reticleSides: Side[] = [];
   readonly cameras: FollowCamera[] = [];
   private preset: QualityPreset;
   private reducedMotion: boolean;
@@ -95,7 +98,9 @@ export class GameRenderer {
       density: this.preset.density,
       reducedMotion: this.reducedMotion,
     });
-    this.scene.add(this.world.group, this.actors.group, this.effects.group);
+    this.reticles = new ReticleView(this.world.terrain);
+    this.reticles.setSides(this.reticleSides);
+    this.scene.add(this.world.group, this.actors.group, this.effects.group, this.reticles.group);
     const W = state.world.W * TILE;
     const H = state.world.H * TILE;
     this.cameras.length = 0;
@@ -103,6 +108,12 @@ export class GameRenderer {
       const sd = state.sides[side];
       this.cameras.push(new FollowCamera(sd.padX, sd.padY, W, H));
     }
+  }
+
+  /** Sides played on this machine: they get an aiming reticle. */
+  setLocalSides(sides: Side[]) {
+    this.reticleSides = sides;
+    this.reticles?.setSides(sides);
   }
 
   onEvents(events: readonly SimEvent[]) {
@@ -127,6 +138,7 @@ export class GameRenderer {
     this.world.update(dt, time);
     this.actors.update(dt, time);
     this.effects.update(dt);
+    this.reticles?.update(s, time);
     const size = this.renderer.getSize(new THREE.Vector2());
     this.renderer.info.autoReset = false;
     this.renderer.info.reset();

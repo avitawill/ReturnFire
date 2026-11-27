@@ -286,3 +286,13 @@ was taught to use its own drones on covering guns, as a competent player would.
 Two AI fixes came out of this: on a routine replan the AI keeps its current route unless the new one
 is clearly shorter (equal routes round an island made a tank turn back and forth on the spot), and the
 AI never fires a drone "opportunistically" on the way, only on purpose.
+
+## Aiming reticle
+
+The drone and the helicopter aim with their nose, which is hard to judge from a tilted camera. Both now
+show a marker on the ground: for the drone, where its dive would end if it dived now (it keeps updating
+during the dive); for the helicopter, where its machine-gun fire lands, at most at the end of its range.
+The marker turns red and pulses when something hostile is on the line. The prediction lives in the sim
+(`systems/aim.ts`) and uses the same contact rules as the real dive and bullets; a test checks a real
+dive detonates within 12 px of the predicted point. Only locally played sides get a marker (online, you
+do not see your opponent's). It ignores the helicopter's small random spread.

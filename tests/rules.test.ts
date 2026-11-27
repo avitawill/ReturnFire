@@ -213,3 +213,37 @@ describe('FPV drone', () => {
     expect(ev.some((e) => e.type === 'vehicleLost' && e.side === 0 && e.cause === 'destroyed')).toBe(true);
   });
 });
+
+describe('aim reticle', () => {
+  it('predicts exactly where a drone dive ends, and locks onto what it will hit', async () => {
+    const { aimPoint } = await import('../src/sim/systems/aim');
+    const s = createGame({ seed: 3 });
+    const gun = s.structs.find((t) => t.kind === 'turret' && t.side === 1 && clearApproach(s, t))!;
+    const p = clearApproach(s, gun)!;
+    const d = launch(s, 'fpv');
+    Object.assign(d, { x: p.x, y: p.y, a: p.a, left: true });
+    const aim = aimPoint(s, d)!;
+    expect(aim.locked).toBe(true);
+    // The real dive detonates within a step of the predicted point.
+    let boom: { x: number; y: number } | null = null;
+    run(s, 1.2, () => {
+      const it = idle();
+      it[0].fire = true;
+      return it;
+    }).forEach((e) => e.type === 'vehicleLost' && e.side === 0 && (boom = { x: e.x, y: e.y }));
+    expect(boom).not.toBeNull();
+    expect(Math.hypot(boom!.x - aim.x, boom!.y - aim.y)).toBeLessThan(12);
+  });
+
+  it('shows the helicopter gun range when nothing is in the way, and only for the drone and helicopter', async () => {
+    const { aimPoint } = await import('../src/sim/systems/aim');
+    const s = createGame({ seed: 3 });
+    const h = launch(s, 'heli');
+    const aim = aimPoint(s, h)!;
+    expect(aim.locked).toBe(false);
+    expect(Math.hypot(aim.x - h.x, aim.y - h.y)).toBeGreaterThan(250);
+    s.sides[0].vehicle = null;
+    s.sides[0].respawn = 0;
+    expect(aimPoint(s, launch(s, 'tank'))).toBeNull();
+  });
+});
